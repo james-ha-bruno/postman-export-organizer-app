@@ -10,6 +10,18 @@ This is an independent, community-built tool. It is **not affiliated with, endor
 
 This software is provided "as-is" without warranty of any kind. Use it at your own risk. The authors are not responsible for any data loss, corruption, or other issues that may arise from its use. **Always back up your data before using this tool.**
 
+## macOS Installation
+
+Since the app is not code-signed with an Apple Developer certificate, macOS Gatekeeper will show a **"damaged and can't be opened"** error when you first try to open it. This is normal for unsigned apps downloaded from the internet — the app is not actually damaged.
+
+To fix it, run this in Terminal:
+
+```bash
+xattr -cr /Applications/Postman\ Export\ Organizer.app
+```
+
+Then open the app again normally.
+
 ## Features
 
 - **Import & Analyze** — Load a Postman data export (.zip) and connect your Postman API key
