@@ -34,13 +34,33 @@ Then open the app again normally.
 
 ## Getting Started
 
-### Prerequisites
+### Option 1: Download the App
+
+If you just want to **use** the app, download the latest release from the [Releases page](https://github.com/james-ha-bruno/postman-export-organizer-app/releases). No development tools required — just install and run.
+
+> **macOS users:** See the [macOS Installation](#macos-installation) section above if you get a Gatekeeper warning.
+
+### Option 2: Build from Source
+
+If you want to **modify the code** or run a development build, you'll need:
 
 - [Node.js](https://nodejs.org/) (v18+)
 - [Rust](https://www.rust-lang.org/tools/install) (latest stable)
-- [Tauri CLI](https://v2.tauri.app/start/prerequisites/)
+- [Tauri CLI prerequisites](https://v2.tauri.app/start/prerequisites/)
 
-### Postman Setup
+Then:
+
+```bash
+git clone https://github.com/james-ha-bruno/postman-export-organizer-app.git
+cd postman-export-organizer-app
+npm install
+npm run tauri dev     # Run in development mode
+npm run tauri build   # Build a release binary
+```
+
+---
+
+### Postman Setup (required for both options)
 
 Before using the app, you'll need two things from Postman:
 
@@ -67,19 +87,6 @@ To generate an API key:
 > ⚠️ Your API key is only used locally and is never stored to disk. All API calls are made from the app's backend process.
 
 📖 [Postman docs: Postman API authentication](https://learning.postman.com/docs/developer/postman-api/authentication/)
-
-### Development
-
-```bash
-npm install
-npm run tauri dev
-```
-
-### Build
-
-```bash
-npm run tauri build
-```
 
 ## How It Works
 
