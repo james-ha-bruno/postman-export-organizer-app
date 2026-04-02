@@ -28,6 +28,34 @@ This software is provided "as-is" without warranty of any kind. Use it at your o
 - [Rust](https://www.rust-lang.org/tools/install) (latest stable)
 - [Tauri CLI](https://v2.tauri.app/start/prerequisites/)
 
+### Postman Setup
+
+Before using the app, you'll need two things from Postman:
+
+#### 1. Export Your Postman Data
+
+The app works with Postman's **Data Export** format — a zip file containing all your collections, environments, and metadata.
+
+To export your data:
+1. Go to **Settings** → **Data** → **Export Data** in Postman
+2. Select the data you want to export and click **Request Data Export**
+3. Postman will email you a download link when the export is ready
+
+📖 [Postman docs: Exporting data](https://learning.postman.com/docs/getting-started/importing-and-exporting/exporting-data/)
+
+#### 2. Get Your Postman API Key
+
+The app uses the Postman API to fetch workspace details, member info, and other metadata that isn't included in the data export.
+
+To generate an API key:
+1. Go to [Postman API Keys](https://go.postman.co/settings/me/api-keys)
+2. Click **Generate API Key**, give it a name, and copy the key
+3. The key starts with `PMAK-...`
+
+> ⚠️ Your API key is only used locally and is never stored to disk. All API calls are made from the app's backend process.
+
+📖 [Postman docs: Postman API authentication](https://learning.postman.com/docs/developer/postman-api/authentication/)
+
 ### Development
 
 ```bash
