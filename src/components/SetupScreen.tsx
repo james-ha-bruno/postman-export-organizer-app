@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import type { ExportData, UserInfo, AnalysisResult } from "../types";
 
 interface SetupScreenProps {
@@ -135,9 +136,18 @@ export default function SetupScreen({ onAnalysisComplete }: SetupScreenProps) {
 
         {/* File Upload Section */}
         <section aria-label="Export file selection">
-          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Export File
-          </label>
+          <div className="mb-2 flex items-baseline justify-between">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Export File
+            </label>
+            <button
+              type="button"
+              onClick={() => openUrl("https://learning.postman.com/docs/getting-started/importing-and-exporting/exporting-data/")}
+              className="text-xs text-accent-500 hover:text-accent-600 dark:text-accent-400 dark:hover:text-accent-300 transition-colors"
+            >
+              How do I export my data? ↗
+            </button>
+          </div>
           <button
             type="button"
             onClick={handleFilePick}
@@ -184,9 +194,18 @@ export default function SetupScreen({ onAnalysisComplete }: SetupScreenProps) {
 
         {/* API Key Section */}
         <section aria-label="API key validation">
-          <label htmlFor="api-key-input" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Postman API Key
-          </label>
+          <div className="mb-2 flex items-baseline justify-between">
+            <label htmlFor="api-key-input" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Postman API Key
+            </label>
+            <button
+              type="button"
+              onClick={() => openUrl("https://learning.postman.com/docs/developer/postman-api/authentication/")}
+              className="text-xs text-accent-500 hover:text-accent-600 dark:text-accent-400 dark:hover:text-accent-300 transition-colors"
+            >
+              How do I get an API key? ↗
+            </button>
+          </div>
           <div className="flex gap-2">
             <div className="relative flex-1">
               <input
