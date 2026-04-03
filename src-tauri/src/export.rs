@@ -1,5 +1,6 @@
 use crate::models::*;
 use crate::parser;
+use std::collections::HashSet;
 use std::io::{Read, Write};
 
 /// Sanitize a name for use as a filesystem path component
@@ -12,6 +13,27 @@ fn sanitize_name(name: &str) -> String {
         .collect::<String>()
         .trim()
         .to_string()
+}
+
+/// Generate a unique zip entry path, appending _2, _3, etc. on collision
+fn deduplicate_path(
+    used: &mut HashSet<String>,
+    dir: &str,
+    base_name: &str,
+    extension: &str,
+) -> String {
+    let candidate = format!("{}/{}.{}", dir, base_name, extension);
+    if used.insert(candidate.clone()) {
+        return candidate;
+    }
+    let mut counter = 2u32;
+    loop {
+        let candidate = format!("{}/{}_{}.{}", dir, base_name, counter, extension);
+        if used.insert(candidate.clone()) {
+            return candidate;
+        }
+        counter += 1;
+    }
 }
 
 /// Create an organized zip grouped by workspace
@@ -72,15 +94,19 @@ pub fn export_organized_zip(
     let options = zip::write::SimpleFileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated);
 
+    let mut used_paths: HashSet<String> = HashSet::new();
+
     for ws in &analysis.workspaces {
         let ws_dir = sanitize_name(&ws.workspace_name);
 
         for col_summary in &ws.collections {
             if let Some(data) = col_data.get(&col_summary.uid) {
-                let path = format!(
-                    "{}/collections/{}.postman_collection.json",
-                    ws_dir,
-                    sanitize_name(&col_summary.name)
+                let base_name = sanitize_name(&col_summary.name);
+                let path = deduplicate_path(
+                    &mut used_paths,
+                    &format!("{}/collections", ws_dir),
+                    &base_name,
+                    "postman_collection.json",
                 );
                 zip_writer
                     .start_file(&path, options)
@@ -93,10 +119,12 @@ pub fn export_organized_zip(
 
         for env_summary in &ws.environments {
             if let Some(data) = env_data.get(&env_summary.id) {
-                let path = format!(
-                    "{}/environments/{}.postman_environment.json",
-                    ws_dir,
-                    sanitize_name(&env_summary.name)
+                let base_name = sanitize_name(&env_summary.name);
+                let path = deduplicate_path(
+                    &mut used_paths,
+                    &format!("{}/environments", ws_dir),
+                    &base_name,
+                    "postman_environment.json",
                 );
                 zip_writer
                     .start_file(&path, options)
