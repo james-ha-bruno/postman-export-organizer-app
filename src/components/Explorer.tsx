@@ -6,6 +6,7 @@ import type {
   SortDirection,
   WorkspaceTypeFilter,
   DuplicateFilter,
+  SourceMode,
 } from "../types";
 import SummaryBar from "./SummaryBar";
 import SearchFilter from "./SearchFilter";
@@ -15,6 +16,7 @@ import ExportPanel from "./ExportPanel";
 interface ExplorerProps {
   analysis: AnalysisResult;
   exportPath: string;
+  sourceMode: SourceMode;
   onBack: () => void;
 }
 
@@ -27,7 +29,7 @@ function hasDuplicates(w: WorkspaceAnalysis): boolean {
   );
 }
 
-export default function Explorer({ analysis, exportPath, onBack }: ExplorerProps) {
+export default function Explorer({ analysis, exportPath, sourceMode, onBack }: ExplorerProps) {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<WorkspaceTypeFilter>("all");
   const [duplicateFilter, setDuplicateFilter] = useState<DuplicateFilter>("all");
@@ -132,7 +134,7 @@ export default function Explorer({ analysis, exportPath, onBack }: ExplorerProps
         </div>
 
         {/* Export panel */}
-        <ExportPanel analysis={analysis} exportPath={exportPath} />
+        <ExportPanel analysis={analysis} exportPath={exportPath} sourceMode={sourceMode} />
       </div>
     </div>
   );

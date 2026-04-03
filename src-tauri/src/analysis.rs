@@ -3,6 +3,7 @@ use crate::models::*;
 use crate::parser;
 use serde_json::Value;
 use std::collections::HashMap;
+use std::sync::Mutex;
 
 /// Parse members from the Postman API response, handling both array and object formats.
 /// Uses the user_map (from GET /users) to resolve numeric IDs to display names.
@@ -418,6 +419,159 @@ pub async fn analyze_export(
             unmatched_cols,
             unmatched_envs,
         ));
+    }
+
+    // Sort workspaces: unassigned last
+    workspace_analyses.sort_by(|a, b| {
+        if a.workspace_id == "unassigned" {
+            std::cmp::Ordering::Greater
+        } else if b.workspace_id == "unassigned" {
+            std::cmp::Ordering::Less
+        } else {
+            a.workspace_name.cmp(&b.workspace_name)
+        }
+    });
+
+    Ok(AnalysisResult {
+        generated_at: chrono::Utc::now().to_rfc3339(),
+        workspaces: workspace_analyses,
+    })
+}
+
+/// API-only analysis: fetch collections and environments directly from the Postman API.
+/// Stores the raw collection/environment JSON data in `api_cache` for later export.
+pub async fn analyze_from_api(
+    api_key: &str,
+    workspace_filter: Option<String>,
+    api_cache: &Mutex<ApiDataCache>,
+) -> Result<AnalysisResult, String> {
+    // Fetch workspaces from API
+    let api_workspaces = api::fetch_workspaces(api_key).await?;
+
+    // Fetch team users for ID-to-name resolution
+    let user_map = api::fetch_team_users(api_key).await;
+
+    let mut workspace_analyses = Vec::new();
+    // Collect cached data locally first to avoid holding mutex across awaits
+    let mut cached_collections: HashMap<String, Vec<u8>> = HashMap::new();
+    let mut cached_environments: HashMap<String, Vec<u8>> = HashMap::new();
+
+    for ws in &api_workspaces {
+        // Apply workspace filter if present
+        if let Some(ref filter) = workspace_filter {
+            if !ws.name.to_lowercase().contains(&filter.to_lowercase()) {
+                continue;
+            }
+        }
+
+        let detail = match api::fetch_workspace_detail(api_key, &ws.id).await {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("Warning: Failed to fetch workspace {}: {}", ws.id, e);
+                continue;
+            }
+        };
+
+        // Fetch full collections for this workspace
+        let mut ws_collections = Vec::new();
+        if let Some(ref col_refs) = detail.collections {
+            for col_ref in col_refs {
+                let col_uid = col_ref
+                    .uid
+                    .as_deref()
+                    .or(col_ref.id.as_deref())
+                    .unwrap_or("");
+                if col_uid.is_empty() {
+                    continue;
+                }
+
+                match api::fetch_collection_json(api_key, col_uid).await {
+                    Ok(raw_json) => {
+                        match parser::parse_collection(&raw_json) {
+                            Ok(col_data) => {
+                                cached_collections.insert(col_data.uid.clone(), raw_json);
+                                ws_collections.push(col_data);
+                            }
+                            Err(e) => {
+                                eprintln!("Warning: Failed to parse collection {}: {}", col_uid, e);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Warning: Failed to fetch collection {}: {}", col_uid, e);
+                    }
+                }
+            }
+        }
+
+        // Fetch full environments for this workspace
+        let mut ws_environments = Vec::new();
+        if let Some(ref env_refs) = detail.environments {
+            for env_ref in env_refs {
+                let env_uid = env_ref
+                    .uid
+                    .as_deref()
+                    .or(env_ref.id.as_deref())
+                    .unwrap_or("");
+                if env_uid.is_empty() {
+                    continue;
+                }
+
+                match api::fetch_environment_json(api_key, env_uid).await {
+                    Ok(raw_json) => {
+                        match parser::parse_environment(&raw_json) {
+                            Ok(env_data) => {
+                                cached_environments.insert(env_data.id.clone(), raw_json);
+                                ws_environments.push(env_data);
+                            }
+                            Err(e) => {
+                                eprintln!(
+                                    "Warning: Failed to parse environment {}: {}",
+                                    env_uid, e
+                                );
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Warning: Failed to fetch environment {}: {}", env_uid, e);
+                    }
+                }
+            }
+        }
+
+        if !ws_collections.is_empty() || !ws_environments.is_empty() {
+            let members = parse_members(&detail.members, &user_map);
+
+            let created_by = detail.created_by.clone().map(|cb| {
+                if cb.chars().all(|c| c.is_ascii_digit()) {
+                    user_map.get(&cb).cloned().unwrap_or(cb)
+                } else {
+                    cb
+                }
+            });
+
+            workspace_analyses.push(build_workspace_analysis(
+                &ws.id,
+                &ws.name,
+                &detail.workspace_type,
+                detail.created_at.clone(),
+                detail.updated_at.clone(),
+                created_by,
+                detail.description.clone(),
+                members,
+                ws_collections,
+                ws_environments,
+            ));
+        }
+    }
+
+    // Store fetched data in the cache (lock only briefly, no awaits)
+    {
+        let mut cache = api_cache
+            .lock()
+            .map_err(|e| format!("Failed to lock API cache: {}", e))?;
+        cache.collections = cached_collections;
+        cache.environments = cached_environments;
     }
 
     // Sort workspaces: unassigned last

@@ -91,6 +91,79 @@ pub async fn fetch_workspace_detail(
     Ok(detail.workspace)
 }
 
+/// Fetch a single collection's full JSON (for API-only mode)
+pub async fn fetch_collection_json(
+    api_key: &str,
+    collection_id: &str,
+) -> Result<Vec<u8>, String> {
+    let client = build_client(api_key)?;
+    let resp = client
+        .get(format!("{}/collections/{}", POSTMAN_API_BASE, collection_id))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch collection {}: {}", collection_id, e))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(format!(
+            "Collection API returned {}: {}",
+            status, body
+        ));
+    }
+
+    let body: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse collection response: {}", e))?;
+
+    // The API returns { "collection": { ... } }, we want just the inner collection object
+    let collection = body
+        .get("collection")
+        .ok_or_else(|| "Missing 'collection' field in API response".to_string())?;
+
+    serde_json::to_vec_pretty(collection)
+        .map_err(|e| format!("Failed to serialize collection: {}", e))
+}
+
+/// Fetch a single environment's full JSON (for API-only mode)
+pub async fn fetch_environment_json(
+    api_key: &str,
+    environment_id: &str,
+) -> Result<Vec<u8>, String> {
+    let client = build_client(api_key)?;
+    let resp = client
+        .get(format!(
+            "{}/environments/{}",
+            POSTMAN_API_BASE, environment_id
+        ))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch environment {}: {}", environment_id, e))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(format!(
+            "Environment API returned {}: {}",
+            status, body
+        ));
+    }
+
+    let body: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse environment response: {}", e))?;
+
+    // The API returns { "environment": { ... } }, we want just the inner environment object
+    let environment = body
+        .get("environment")
+        .ok_or_else(|| "Missing 'environment' field in API response".to_string())?;
+
+    serde_json::to_vec_pretty(environment)
+        .map_err(|e| format!("Failed to serialize environment: {}", e))
+}
+
 /// Fetch team users from GET /users and return a map of user ID -> display name.
 /// Returns an empty map if the endpoint fails (e.g. 403 due to plan limitations).
 pub async fn fetch_team_users(api_key: &str) -> HashMap<String, String> {

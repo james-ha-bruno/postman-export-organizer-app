@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
-import type { AnalysisResult } from "../types";
+import type { AnalysisResult, SourceMode } from "../types";
 
 interface ExportPanelProps {
   analysis: AnalysisResult;
   exportPath: string;
+  sourceMode: SourceMode;
 }
 
 interface Toast {
@@ -15,7 +16,7 @@ interface Toast {
 
 type ExportType = "zip" | "json" | "csv";
 
-export default function ExportPanel({ analysis, exportPath }: ExportPanelProps) {
+export default function ExportPanel({ analysis, exportPath, sourceMode }: ExportPanelProps) {
   const [loading, setLoading] = useState<ExportType | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
 
@@ -49,7 +50,11 @@ export default function ExportPanel({ analysis, exportPath }: ExportPanelProps) 
       let result: string;
       switch (type) {
         case "zip":
-          result = await invoke<string>("export_organized_zip", { analysisJson, exportPath, outputPath });
+          if (sourceMode === "api") {
+            result = await invoke<string>("export_organized_zip_from_api", { analysisJson, outputPath });
+          } else {
+            result = await invoke<string>("export_organized_zip", { analysisJson, exportPath, outputPath });
+          }
           break;
         case "json":
           result = await invoke<string>("export_report_json", { analysisJson, outputPath });

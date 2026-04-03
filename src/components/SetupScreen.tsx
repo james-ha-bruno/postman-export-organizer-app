@@ -2,15 +2,17 @@ import { useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import type { ExportData, UserInfo, AnalysisResult } from "../types";
+import type { ExportData, UserInfo, AnalysisResult, SourceMode } from "../types";
 
 interface SetupScreenProps {
-  onAnalysisComplete: (result: AnalysisResult, exportPath: string) => void;
+  onAnalysisComplete: (result: AnalysisResult, exportPath: string, sourceMode: SourceMode) => void;
 }
 
 type ValidationState = "idle" | "loading" | "success" | "error";
 
 export default function SetupScreen({ onAnalysisComplete }: SetupScreenProps) {
+  const [sourceMode, setSourceMode] = useState<SourceMode>("zip");
+
   const [exportPath, setExportPath] = useState<string | null>(null);
   const [exportData, setExportData] = useState<ExportData | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
@@ -71,48 +73,67 @@ export default function SetupScreen({ onAnalysisComplete }: SetupScreenProps) {
     }
   };
 
-  const handleAnalyze = async () => {
-    if (!exportPath) return;
-
-    // Auto-validate if key is entered but not yet validated
-    if (keyState !== "success" && apiKey.trim()) {
-      setKeyState("loading");
-      setKeyError(null);
-      try {
-        const info = await invoke<UserInfo>("validate_api_key", { key: apiKey });
-        setUserInfo(info);
-        setKeyState("success");
-      } catch (err) {
-        setKeyError(String(err));
-        setKeyState("error");
-        return;
-      }
-    }
-
-    if (keyState !== "success" && !apiKey.trim()) return;
-
-    setAnalyzing(true);
-    setAnalyzeError(null);
+  const ensureKeyValidated = async (): Promise<boolean> => {
+    if (keyState === "success") return true;
+    if (!apiKey.trim()) return false;
+    setKeyState("loading");
+    setKeyError(null);
     try {
-      const result = await invoke<AnalysisResult>("analyze_export", {
-        key: apiKey,
-        exportPath,
-      });
-      onAnalysisComplete(result, exportPath);
+      const info = await invoke<UserInfo>("validate_api_key", { key: apiKey });
+      setUserInfo(info);
+      setKeyState("success");
+      return true;
     } catch (err) {
-      setAnalyzeError(String(err));
-    } finally {
-      setAnalyzing(false);
+      setKeyError(String(err));
+      setKeyState("error");
+      return false;
     }
   };
 
-  const canAnalyze = !!exportData && !!apiKey.trim() && !analyzing;
+  const handleAnalyze = async () => {
+    if (!(await ensureKeyValidated())) return;
+
+    if (sourceMode === "zip") {
+      if (!exportPath) return;
+      setAnalyzing(true);
+      setAnalyzeError(null);
+      try {
+        const result = await invoke<AnalysisResult>("analyze_export", {
+          key: apiKey,
+          exportPath,
+        });
+        onAnalysisComplete(result, exportPath, "zip");
+      } catch (err) {
+        setAnalyzeError(String(err));
+      } finally {
+        setAnalyzing(false);
+      }
+    } else {
+      // API-only mode
+      setAnalyzing(true);
+      setAnalyzeError(null);
+      try {
+        const result = await invoke<AnalysisResult>("analyze_from_api", {
+          key: apiKey,
+        });
+        onAnalysisComplete(result, "", "api");
+      } catch (err) {
+        setAnalyzeError(String(err));
+      } finally {
+        setAnalyzing(false);
+      }
+    }
+  };
+
+  const canAnalyze = sourceMode === "api"
+    ? !!apiKey.trim() && !analyzing
+    : !!exportData && !!apiKey.trim() && !analyzing;
 
   const helperText = !canAnalyze && !analyzing
-    ? !exportData
-      ? "Select an export file to continue"
-      : !apiKey.trim()
-        ? "Enter your Postman API key to continue"
+    ? !apiKey.trim()
+      ? "Enter your Postman API key to continue"
+      : sourceMode === "zip" && !exportData
+        ? "Select an export file to continue"
         : null
     : null;
 
@@ -130,11 +151,38 @@ export default function SetupScreen({ onAnalysisComplete }: SetupScreenProps) {
             Postman Export Organizer
           </h1>
           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            Analyze and organize your Postman data export
+            Analyze and organize your Postman data
           </p>
         </div>
 
-        {/* File Upload Section */}
+        {/* Source Mode Toggle */}
+        <div className="flex rounded-xl bg-gray-100 p-1 dark:bg-gray-800">
+          <button
+            type="button"
+            onClick={() => setSourceMode("zip")}
+            className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors
+              ${sourceMode === "zip"
+                ? "bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white"
+                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              }`}
+          >
+            ZIP Export
+          </button>
+          <button
+            type="button"
+            onClick={() => setSourceMode("api")}
+            className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors
+              ${sourceMode === "api"
+                ? "bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white"
+                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              }`}
+          >
+            Postman API
+          </button>
+        </div>
+
+        {/* File Upload Section (ZIP mode only) */}
+        {sourceMode === "zip" && (
         <section aria-label="Export file selection">
           <div className="mb-2 flex items-baseline justify-between">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -191,6 +239,17 @@ export default function SetupScreen({ onAnalysisComplete }: SetupScreenProps) {
             <p className="mt-2 text-sm text-red-600 dark:text-red-400" role="alert">{parseError}</p>
           )}
         </section>
+        )}
+
+        {/* API mode description */}
+        {sourceMode === "api" && (
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/20">
+            <p className="text-sm text-blue-700 dark:text-blue-300">
+              Fetch collections and environments directly from the Postman API — no export file needed.
+              Just enter your API key below to get started.
+            </p>
+          </div>
+        )}
 
         {/* API Key Section */}
         <section aria-label="API key validation">
@@ -275,7 +334,7 @@ export default function SetupScreen({ onAnalysisComplete }: SetupScreenProps) {
               <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" /></svg>
               Analyzing…
             </span>
-          ) : "Analyze Export"}
+          ) : sourceMode === "api" ? "Fetch & Analyze" : "Analyze Export"}
         </button>
         {analyzeError && (
           <p className="text-center text-sm text-red-600 dark:text-red-400" role="alert">{analyzeError}</p>

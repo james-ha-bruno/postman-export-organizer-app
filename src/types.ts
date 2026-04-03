@@ -138,6 +138,7 @@ export interface EnvironmentSummary {
 // === App State ===
 
 export type AppView = "setup" | "explorer";
+export type SourceMode = "zip" | "api";
 
 export type SortField = "name" | "collections" | "requests" | "updated";
 export type SortDirection = "asc" | "desc";

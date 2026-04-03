@@ -1,6 +1,6 @@
 use crate::models::*;
 use crate::parser;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::io::{Read, Write};
 
 /// Sanitize a name for use as a filesystem path component
@@ -198,6 +198,71 @@ pub fn export_report_csv(analysis_json: &str, output_path: &str) -> Result<Strin
     }
 
     wtr.flush().map_err(|e| format!("CSV flush error: {}", e))?;
+
+    Ok(output_path.to_string())
+}
+
+/// Create an organized zip from API-cached data (no source zip needed)
+pub fn export_organized_zip_from_api(
+    analysis_json: &str,
+    col_data: &HashMap<String, Vec<u8>>,
+    env_data: &HashMap<String, Vec<u8>>,
+    output_path: &str,
+) -> Result<String, String> {
+    let analysis: AnalysisResult =
+        serde_json::from_str(analysis_json).map_err(|e| format!("Failed to parse analysis JSON: {}", e))?;
+
+    let out_file =
+        std::fs::File::create(output_path).map_err(|e| format!("Failed to create output file: {}", e))?;
+    let mut zip_writer = zip::ZipWriter::new(out_file);
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
+
+    let mut used_paths: HashSet<String> = HashSet::new();
+
+    for ws in &analysis.workspaces {
+        let ws_dir = sanitize_name(&ws.workspace_name);
+
+        for col_summary in &ws.collections {
+            if let Some(data) = col_data.get(&col_summary.uid) {
+                let base_name = sanitize_name(&col_summary.name);
+                let path = deduplicate_path(
+                    &mut used_paths,
+                    &format!("{}/collections", ws_dir),
+                    &base_name,
+                    "postman_collection.json",
+                );
+                zip_writer
+                    .start_file(&path, options)
+                    .map_err(|e| format!("Zip write error: {}", e))?;
+                zip_writer
+                    .write_all(data)
+                    .map_err(|e| format!("Write error: {}", e))?;
+            }
+        }
+
+        for env_summary in &ws.environments {
+            if let Some(data) = env_data.get(&env_summary.id) {
+                let base_name = sanitize_name(&env_summary.name);
+                let path = deduplicate_path(
+                    &mut used_paths,
+                    &format!("{}/environments", ws_dir),
+                    &base_name,
+                    "postman_environment.json",
+                );
+                zip_writer
+                    .start_file(&path, options)
+                    .map_err(|e| format!("Zip write error: {}", e))?;
+                zip_writer
+                    .write_all(data)
+                    .map_err(|e| format!("Write error: {}", e))?;
+            }
+        }
+    }
+
+    zip_writer
+        .finish()
+        .map_err(|e| format!("Failed to finalize zip: {}", e))?;
 
     Ok(output_path.to_string())
 }

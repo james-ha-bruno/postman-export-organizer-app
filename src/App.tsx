@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import type { AnalysisResult, AppView } from "./types";
+import type { AnalysisResult, AppView, SourceMode } from "./types";
 import SetupScreen from "./components/SetupScreen";
 import Explorer from "./components/Explorer";
 
@@ -7,6 +7,7 @@ function App() {
   const [view, setView] = useState<AppView>("setup");
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [exportPath, setExportPath] = useState<string>("");
+  const [sourceMode, setSourceMode] = useState<SourceMode>("zip");
   const [dark, setDark] = useState(() => {
     if (typeof window !== "undefined") {
       return window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -18,9 +19,10 @@ function App() {
     document.documentElement.classList.toggle("dark", dark);
   }, [dark]);
 
-  const handleAnalysisComplete = useCallback((result: AnalysisResult, path: string) => {
+  const handleAnalysisComplete = useCallback((result: AnalysisResult, path: string, mode: SourceMode) => {
     setAnalysis(result);
     setExportPath(path);
+    setSourceMode(mode);
     setView("explorer");
   }, []);
 
@@ -55,7 +57,7 @@ function App() {
         <SetupScreen onAnalysisComplete={handleAnalysisComplete} />
       )}
       {view === "explorer" && analysis && (
-        <Explorer analysis={analysis} exportPath={exportPath} onBack={handleBack} />
+        <Explorer analysis={analysis} exportPath={exportPath} sourceMode={sourceMode} onBack={handleBack} />
       )}
     </div>
   );

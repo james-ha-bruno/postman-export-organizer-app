@@ -158,6 +158,18 @@ pub struct PostmanUser {
     pub name: Option<String>,
 }
 
+// === API Data Cache (for API-only mode) ===
+
+/// Stores raw collection/environment JSON data fetched from the Postman API,
+/// so it can be used during export without re-fetching.
+#[derive(Debug, Default)]
+pub struct ApiDataCache {
+    /// Map of collection UID -> raw JSON bytes
+    pub collections: HashMap<String, Vec<u8>>,
+    /// Map of environment ID -> raw JSON bytes
+    pub environments: HashMap<String, Vec<u8>>,
+}
+
 // === Analysis Result ===
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
