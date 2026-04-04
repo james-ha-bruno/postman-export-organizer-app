@@ -129,7 +129,7 @@ export default function Explorer({ analysis, exportPath, sourceMode, onBack }: E
               <p className="text-sm text-gray-500 dark:text-gray-400">No workspaces match your filters</p>
             </div>
           ) : (
-            filtered.map((w) => <WorkspaceCard key={w.workspace_id} workspace={w} exportPath={exportPath} analysis={analysis} />)
+            filtered.map((w) => <WorkspaceCard key={w.workspace_id} workspace={w} exportPath={exportPath} sourceMode={sourceMode} analysis={analysis} />)
           )}
         </div>
 

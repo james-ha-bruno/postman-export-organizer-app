@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
-import type { AnalysisResult, MemberInfo, WorkspaceAnalysis } from "../types";
+import type { AnalysisResult, MemberInfo, SourceMode, WorkspaceAnalysis } from "../types";
 import DuplicateDetails from "./DuplicateDetails";
 
 interface WorkspaceCardProps {
   workspace: WorkspaceAnalysis;
   exportPath: string;
+  sourceMode: SourceMode;
   analysis: AnalysisResult;
 }
 
@@ -56,7 +57,7 @@ interface Toast {
   message: string;
 }
 
-export default function WorkspaceCard({ workspace: w, exportPath, analysis }: WorkspaceCardProps) {
+export default function WorkspaceCard({ workspace: w, exportPath, sourceMode, analysis }: WorkspaceCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<"collections" | "environments" | "duplicates" | "members">("collections");
   const [exporting, setExporting] = useState(false);
@@ -81,11 +82,20 @@ export default function WorkspaceCard({ workspace: w, exportPath, analysis }: Wo
         generated_at: analysis.generated_at,
         workspaces: [w],
       };
-      const result = await invoke<string>("export_organized_zip", {
-        analysisJson: JSON.stringify(singleWorkspaceAnalysis),
-        exportPath,
-        outputPath,
-      });
+      const analysisJson = JSON.stringify(singleWorkspaceAnalysis);
+      let result: string;
+      if (sourceMode === "api") {
+        result = await invoke<string>("export_organized_zip_from_api", {
+          analysisJson,
+          outputPath,
+        });
+      } else {
+        result = await invoke<string>("export_organized_zip", {
+          analysisJson,
+          exportPath,
+          outputPath,
+        });
+      }
       setToast({ type: "success", message: `Exported to ${result}` });
       setTimeout(() => setToast(null), 4000);
     } catch (err) {
