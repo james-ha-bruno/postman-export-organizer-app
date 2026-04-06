@@ -127,15 +127,16 @@ export default function SetupScreen({ onAnalysisComplete }: SetupScreenProps) {
       }
     } else {
       // API-only mode
-      setAnalyzing(true);
       setAnalyzeError(null);
       setProgress(null);
 
-      // Listen for progress events
+      // Listen for progress events BEFORE starting analysis
       unlistenRef.current?.();
       unlistenRef.current = await listen<ApiProgress>("api-progress", (event) => {
         setProgress(event.payload);
       });
+
+      setAnalyzing(true);
 
       try {
         const result = await invoke<AnalysisResult>("analyze_from_api", {
