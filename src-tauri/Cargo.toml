@@ -1,6 +1,6 @@
 [package]
 name = "postman-export-organizer"
-version = "0.1.0"
+version = "0.2.0"
 description = "Postman Export Organizer"
 authors = ["you"]
 edition = "2021"
