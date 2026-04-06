@@ -20,8 +20,9 @@ pub async fn analyze_export(
     key: String,
     export_path: String,
     workspace_filter: Option<String>,
+    app_handle: tauri::AppHandle,
 ) -> Result<AnalysisResult, String> {
-    analysis::analyze_export(&key, &export_path, workspace_filter).await
+    analysis::analyze_export(&key, &export_path, workspace_filter, &app_handle).await
 }
 
 #[tauri::command]

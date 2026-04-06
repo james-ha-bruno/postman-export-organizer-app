@@ -279,14 +279,39 @@ pub async fn analyze_export(
     api_key: &str,
     export_path: &str,
     workspace_filter: Option<String>,
+    app_handle: &tauri::AppHandle,
 ) -> Result<AnalysisResult, String> {
-    // Parse the export
-    let export_data = parser::parse_export_zip(export_path)?;
+    use tauri::Emitter;
 
-    // Fetch workspaces from API
+    let emit = |phase: &str, message: &str, current: usize, total: usize| {
+        let _ = app_handle.emit(
+            "api-progress",
+            ApiProgress {
+                phase: phase.to_string(),
+                message: message.to_string(),
+                current,
+                total,
+            },
+        );
+    };
+
+    // Phase 1: Parse the export ZIP
+    emit("parsing", "Parsing export ZIP file…", 0, 0);
+    let export_data = parser::parse_export_zip(export_path)?;
+    let item_count = export_data.collections.len() + export_data.environments.len();
+    emit(
+        "parsing",
+        &format!("Parsed {} collections, {} environments", export_data.collections.len(), export_data.environments.len()),
+        item_count,
+        item_count,
+    );
+
+    // Phase 2: Fetch workspaces from API
+    emit("workspaces", "Fetching workspaces from API…", 0, 0);
     let api_workspaces = api::fetch_workspaces(api_key).await?;
 
     // Fetch team users for ID-to-name resolution (returns empty map on failure)
+    emit("workspaces", "Fetching team users…", 0, 0);
     let user_map = api::fetch_team_users(api_key).await;
 
     // Build a map of collection UID -> CollectionData
@@ -305,14 +330,28 @@ pub async fn analyze_export(
     let mut matched_col_uids: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut matched_env_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
 
-    // Fetch details for each workspace
-    for ws in &api_workspaces {
-        // Apply workspace filter if present
-        if let Some(ref filter) = workspace_filter {
-            if !ws.name.to_lowercase().contains(&filter.to_lowercase()) {
-                continue;
+    // Filter workspaces
+    let filtered_workspaces: Vec<_> = api_workspaces
+        .iter()
+        .filter(|ws| {
+            if let Some(ref filter) = workspace_filter {
+                ws.name.to_lowercase().contains(&filter.to_lowercase())
+            } else {
+                true
             }
-        }
+        })
+        .collect();
+    let ws_total = filtered_workspaces.len();
+
+    // Phase 3: Fetch details for each workspace
+    emit("details", &format!("Mapping {} workspaces…", ws_total), 0, ws_total);
+    for (i, ws) in filtered_workspaces.iter().enumerate() {
+        emit(
+            "details",
+            &format!("Workspace {}/{}: {}…", i + 1, ws_total, ws.name),
+            i + 1,
+            ws_total,
+        );
 
         let detail = match api::fetch_workspace_detail(api_key, &ws.id).await {
             Ok(d) => d,
@@ -420,6 +459,8 @@ pub async fn analyze_export(
             unmatched_envs,
         ));
     }
+
+    emit("done", "Analysis complete", ws_total, ws_total);
 
     // Sort workspaces: unassigned last
     workspace_analyses.sort_by(|a, b| {

@@ -112,8 +112,16 @@ export default function SetupScreen({ onAnalysisComplete }: SetupScreenProps) {
 
     if (sourceMode === "zip") {
       if (!exportPath) return;
-      setAnalyzing(true);
       setAnalyzeError(null);
+      setProgress(null);
+
+      // Listen for progress events BEFORE starting analysis
+      unlistenRef.current?.();
+      unlistenRef.current = await listen<ApiProgress>("api-progress", (event) => {
+        setProgress(event.payload);
+      });
+
+      setAnalyzing(true);
       try {
         const result = await invoke<AnalysisResult>("analyze_export", {
           key: apiKey,
@@ -123,7 +131,10 @@ export default function SetupScreen({ onAnalysisComplete }: SetupScreenProps) {
       } catch (err) {
         setAnalyzeError(String(err));
       } finally {
+        unlistenRef.current?.();
+        unlistenRef.current = null;
         setAnalyzing(false);
+        setProgress(null);
       }
     } else {
       // API-only mode
