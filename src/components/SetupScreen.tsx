@@ -414,6 +414,19 @@ export default function SetupScreen({ onAnalysisComplete }: SetupScreenProps) {
           <p className="text-center text-sm text-gray-400 dark:text-gray-500">{helperText}</p>
         )}
 
+        {/* Privacy disclaimer */}
+        <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800/50">
+          <div className="flex items-start gap-2">
+            <svg className="mt-0.5 h-4 w-4 flex-shrink-0 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+            <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+              <span className="font-medium text-gray-600 dark:text-gray-300">100% local &amp; private.</span>{" "}
+              Your API key, files, and data are never saved, stored, or sent to any third-party service. All processing happens entirely on your device.
+            </p>
+          </div>
+        </div>
+
         {/* GitHub link */}
         <div className="flex justify-center pt-2">
           <button
