@@ -440,39 +440,82 @@ pub async fn analyze_export(
 
 /// API-only analysis: fetch collections and environments directly from the Postman API.
 /// Stores the raw collection/environment JSON data in `api_cache` for later export.
+/// Emits `api-progress` events via the Tauri app handle so the frontend can show progress.
 pub async fn analyze_from_api(
     api_key: &str,
     workspace_filter: Option<String>,
     api_cache: &Mutex<ApiDataCache>,
+    app_handle: &tauri::AppHandle,
 ) -> Result<AnalysisResult, String> {
-    // Fetch workspaces from API
+    use tauri::Emitter;
+
+    let emit = |phase: &str, message: &str, current: usize, total: usize| {
+        let _ = app_handle.emit(
+            "api-progress",
+            ApiProgress {
+                phase: phase.to_string(),
+                message: message.to_string(),
+                current,
+                total,
+            },
+        );
+    };
+
+    // Phase 1: Fetch workspace list
+    emit("workspaces", "Fetching workspaces…", 0, 0);
     let api_workspaces = api::fetch_workspaces(api_key).await?;
 
     // Fetch team users for ID-to-name resolution
+    emit("workspaces", "Fetching team users…", 0, 0);
     let user_map = api::fetch_team_users(api_key).await;
 
+    // Filter workspaces to know the total count
+    let filtered_workspaces: Vec<_> = api_workspaces
+        .iter()
+        .filter(|ws| {
+            if let Some(ref filter) = workspace_filter {
+                ws.name.to_lowercase().contains(&filter.to_lowercase())
+            } else {
+                true
+            }
+        })
+        .collect();
+    let ws_total = filtered_workspaces.len();
+
     let mut workspace_analyses = Vec::new();
-    // Collect cached data locally first to avoid holding mutex across awaits
     let mut cached_collections: HashMap<String, Vec<u8>> = HashMap::new();
     let mut cached_environments: HashMap<String, Vec<u8>> = HashMap::new();
+    let mut items_fetched: usize = 0;
 
-    for ws in &api_workspaces {
-        // Apply workspace filter if present
-        if let Some(ref filter) = workspace_filter {
-            if !ws.name.to_lowercase().contains(&filter.to_lowercase()) {
-                continue;
-            }
-        }
-
-        let detail = match api::fetch_workspace_detail(api_key, &ws.id).await {
-            Ok(d) => d,
+    // Phase 2: For each workspace, count total items first for progress
+    // We do a two-pass: first get all workspace details to know total items
+    emit("details", &format!("Loading details for {} workspaces…", ws_total), 0, ws_total);
+    let mut ws_details = Vec::new();
+    for (i, ws) in filtered_workspaces.iter().enumerate() {
+        emit(
+            "details",
+            &format!("Workspace {}/{}: {}…", i + 1, ws_total, ws.name),
+            i + 1,
+            ws_total,
+        );
+        match api::fetch_workspace_detail(api_key, &ws.id).await {
+            Ok(d) => ws_details.push((ws, d)),
             Err(e) => {
                 eprintln!("Warning: Failed to fetch workspace {}: {}", ws.id, e);
-                continue;
             }
-        };
+        }
+    }
 
-        // Fetch full collections for this workspace
+    // Count total items (collections + environments) across all workspaces
+    let total_items: usize = ws_details.iter().map(|(_, d)| {
+        d.collections.as_ref().map_or(0, |c| c.len())
+            + d.environments.as_ref().map_or(0, |e| e.len())
+    }).sum();
+
+    emit("items", &format!("Fetching {} collections & environments…", total_items), 0, total_items);
+
+    // Phase 3: Fetch all collections and environments
+    for (ws, detail) in &ws_details {
         let mut ws_collections = Vec::new();
         if let Some(ref col_refs) = detail.collections {
             for col_ref in col_refs {
@@ -482,8 +525,18 @@ pub async fn analyze_from_api(
                     .or(col_ref.id.as_deref())
                     .unwrap_or("");
                 if col_uid.is_empty() {
+                    items_fetched += 1;
                     continue;
                 }
+
+                items_fetched += 1;
+                let col_name = col_ref.name.as_deref().unwrap_or(col_uid);
+                emit(
+                    "items",
+                    &format!("Collection: {} ({}/{})", col_name, items_fetched, total_items),
+                    items_fetched,
+                    total_items,
+                );
 
                 match api::fetch_collection_json(api_key, col_uid).await {
                     Ok(raw_json) => {
@@ -504,7 +557,6 @@ pub async fn analyze_from_api(
             }
         }
 
-        // Fetch full environments for this workspace
         let mut ws_environments = Vec::new();
         if let Some(ref env_refs) = detail.environments {
             for env_ref in env_refs {
@@ -514,8 +566,18 @@ pub async fn analyze_from_api(
                     .or(env_ref.id.as_deref())
                     .unwrap_or("");
                 if env_uid.is_empty() {
+                    items_fetched += 1;
                     continue;
                 }
+
+                items_fetched += 1;
+                let env_name = env_ref.name.as_deref().unwrap_or(env_uid);
+                emit(
+                    "items",
+                    &format!("Environment: {} ({}/{})", env_name, items_fetched, total_items),
+                    items_fetched,
+                    total_items,
+                );
 
                 match api::fetch_environment_json(api_key, env_uid).await {
                     Ok(raw_json) => {
@@ -573,6 +635,8 @@ pub async fn analyze_from_api(
         cache.collections = cached_collections;
         cache.environments = cached_environments;
     }
+
+    emit("done", "Analysis complete", total_items, total_items);
 
     // Sort workspaces: unassigned last
     workspace_analyses.sort_by(|a, b| {

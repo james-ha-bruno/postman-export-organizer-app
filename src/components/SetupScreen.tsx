@@ -1,8 +1,16 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { ExportData, UserInfo, AnalysisResult, SourceMode } from "../types";
+
+interface ApiProgress {
+  phase: string;
+  message: string;
+  current: number;
+  total: number;
+}
 
 interface SetupScreenProps {
   onAnalysisComplete: (result: AnalysisResult, exportPath: string, sourceMode: SourceMode) => void;
@@ -26,6 +34,15 @@ export default function SetupScreen({ onAnalysisComplete }: SetupScreenProps) {
 
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<ApiProgress | null>(null);
+  const unlistenRef = useRef<UnlistenFn | null>(null);
+
+  // Clean up event listener on unmount
+  useEffect(() => {
+    return () => {
+      unlistenRef.current?.();
+    };
+  }, []);
 
   const [isDragOver, setIsDragOver] = useState(false);
 
@@ -112,6 +129,14 @@ export default function SetupScreen({ onAnalysisComplete }: SetupScreenProps) {
       // API-only mode
       setAnalyzing(true);
       setAnalyzeError(null);
+      setProgress(null);
+
+      // Listen for progress events
+      unlistenRef.current?.();
+      unlistenRef.current = await listen<ApiProgress>("api-progress", (event) => {
+        setProgress(event.payload);
+      });
+
       try {
         const result = await invoke<AnalysisResult>("analyze_from_api", {
           key: apiKey,
@@ -120,7 +145,10 @@ export default function SetupScreen({ onAnalysisComplete }: SetupScreenProps) {
       } catch (err) {
         setAnalyzeError(String(err));
       } finally {
+        unlistenRef.current?.();
+        unlistenRef.current = null;
         setAnalyzing(false);
+        setProgress(null);
       }
     }
   };
@@ -336,6 +364,37 @@ export default function SetupScreen({ onAnalysisComplete }: SetupScreenProps) {
             </span>
           ) : sourceMode === "api" ? "Fetch & Analyze" : "Analyze Export"}
         </button>
+
+        {/* Progress bar for API mode */}
+        {analyzing && progress && (
+          <div className="space-y-2 animate-fade-in">
+            <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+              <span className="truncate mr-2">{progress.message}</span>
+              {progress.total > 0 && (
+                <span className="flex-shrink-0 tabular-nums">
+                  {progress.current}/{progress.total}
+                </span>
+              )}
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+              <div
+                className="h-full rounded-full bg-accent-500 transition-all duration-300 ease-out"
+                style={{
+                  width: progress.total > 0
+                    ? `${Math.min(100, (progress.current / progress.total) * 100)}%`
+                    : "100%",
+                  ...(progress.total === 0 ? { animation: "pulse 1.5s ease-in-out infinite" } : {}),
+                }}
+              />
+            </div>
+            {progress.total > 0 && (
+              <p className="text-center text-xs text-gray-400 dark:text-gray-500">
+                Postman API: 300 requests/min limit
+              </p>
+            )}
+          </div>
+        )}
+
         {analyzeError && (
           <p className="text-center text-sm text-red-600 dark:text-red-400" role="alert">{analyzeError}</p>
         )}

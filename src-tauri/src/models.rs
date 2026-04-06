@@ -158,6 +158,16 @@ pub struct PostmanUser {
     pub name: Option<String>,
 }
 
+// === Progress Event (for API-only mode) ===
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApiProgress {
+    pub phase: String,
+    pub message: String,
+    pub current: usize,
+    pub total: usize,
+}
+
 // === API Data Cache (for API-only mode) ===
 
 /// Stores raw collection/environment JSON data fetched from the Postman API,

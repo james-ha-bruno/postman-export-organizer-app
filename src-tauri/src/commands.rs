@@ -29,8 +29,9 @@ pub async fn analyze_from_api(
     key: String,
     workspace_filter: Option<String>,
     api_cache: tauri::State<'_, Mutex<ApiDataCache>>,
+    app_handle: tauri::AppHandle,
 ) -> Result<AnalysisResult, String> {
-    analysis::analyze_from_api(&key, workspace_filter, &api_cache).await
+    analysis::analyze_from_api(&key, workspace_filter, &api_cache, &app_handle).await
 }
 
 #[tauri::command]
