@@ -1,4 +1,6 @@
 import { useState, useMemo } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { save } from "@tauri-apps/plugin-dialog";
 import type {
   AnalysisResult,
   WorkspaceAnalysis,
@@ -6,10 +8,12 @@ import type {
   SortDirection,
   WorkspaceTypeFilter,
   DuplicateFilter,
+  OwnerFilter,
   SourceMode,
 } from "../types";
+import { getOwnerKey, slugifyOwner, UNKNOWN_OWNER_KEY, UNKNOWN_OWNER_LABEL } from "../lib/owner";
 import SummaryBar from "./SummaryBar";
-import SearchFilter from "./SearchFilter";
+import SearchFilter, { type OwnerOption } from "./SearchFilter";
 import WorkspaceCard from "./WorkspaceCard";
 import ExportPanel from "./ExportPanel";
 
@@ -18,6 +22,11 @@ interface ExplorerProps {
   exportPath: string;
   sourceMode: SourceMode;
   onBack: () => void;
+}
+
+interface Toast {
+  type: "success" | "error";
+  message: string;
 }
 
 function hasDuplicates(w: WorkspaceAnalysis): boolean {
@@ -33,8 +42,28 @@ export default function Explorer({ analysis, exportPath, sourceMode, onBack }: E
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<WorkspaceTypeFilter>("all");
   const [duplicateFilter, setDuplicateFilter] = useState<DuplicateFilter>("all");
+  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>("all");
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [exportingOwnerZip, setExportingOwnerZip] = useState(false);
+  const [ownerToast, setOwnerToast] = useState<Toast | null>(null);
+
+  const ownerOptions = useMemo<OwnerOption[]>(() => {
+    const named = new Set<string>();
+    let hasUnknown = false;
+    for (const w of analysis.workspaces) {
+      const key = getOwnerKey(w);
+      if (key === UNKNOWN_OWNER_KEY) {
+        hasUnknown = true;
+      } else {
+        named.add(key);
+      }
+    }
+    const sorted = Array.from(named).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+    const opts: OwnerOption[] = sorted.map((name) => ({ value: name, label: name }));
+    if (hasUnknown) opts.push({ value: UNKNOWN_OWNER_KEY, label: UNKNOWN_OWNER_LABEL });
+    return opts;
+  }, [analysis.workspaces]);
 
   const filtered = useMemo(() => {
     let result = analysis.workspaces;
@@ -55,6 +84,11 @@ export default function Explorer({ analysis, exportPath, sourceMode, onBack }: E
       result = result.filter(hasDuplicates);
     } else if (duplicateFilter === "no_duplicates") {
       result = result.filter((w) => !hasDuplicates(w));
+    }
+
+    // Owner filter
+    if (ownerFilter !== "all") {
+      result = result.filter((w) => getOwnerKey(w) === ownerFilter);
     }
 
     // Sort
@@ -78,7 +112,57 @@ export default function Explorer({ analysis, exportPath, sourceMode, onBack }: E
     });
 
     return result;
-  }, [analysis.workspaces, search, typeFilter, duplicateFilter, sortField, sortDirection]);
+  }, [analysis.workspaces, search, typeFilter, duplicateFilter, ownerFilter, sortField, sortDirection]);
+
+  // Workspaces matching only the owner filter — used to build the per-owner ZIP
+  // (independent of search/type/duplicate filters so behaviour stays predictable).
+  const ownerScopedWorkspaces = useMemo(() => {
+    if (ownerFilter === "all") return [];
+    return analysis.workspaces.filter((w) => getOwnerKey(w) === ownerFilter);
+  }, [analysis.workspaces, ownerFilter]);
+
+  const ownerLabel = ownerFilter === "all"
+    ? ""
+    : ownerFilter === UNKNOWN_OWNER_KEY
+      ? UNKNOWN_OWNER_LABEL
+      : ownerFilter;
+
+  const showToast = (t: Toast) => {
+    setOwnerToast(t);
+    setTimeout(() => setOwnerToast(null), 4000);
+  };
+
+  const handleExportOwnerZip = async () => {
+    if (ownerFilter === "all" || ownerScopedWorkspaces.length === 0) return;
+    try {
+      setExportingOwnerZip(true);
+      const slug = slugifyOwner(ownerLabel) || "owner";
+      const outputPath = await save({
+        defaultPath: `postman-export-${slug}.zip`,
+        filters: [{ name: "ZIP", extensions: ["zip"] }],
+      });
+      if (!outputPath) {
+        setExportingOwnerZip(false);
+        return;
+      }
+      const filteredAnalysis: AnalysisResult = {
+        generated_at: analysis.generated_at,
+        workspaces: ownerScopedWorkspaces,
+      };
+      const analysisJson = JSON.stringify(filteredAnalysis);
+      let result: string;
+      if (sourceMode === "api") {
+        result = await invoke<string>("export_organized_zip_from_api", { analysisJson, outputPath });
+      } else {
+        result = await invoke<string>("export_organized_zip", { analysisJson, exportPath, outputPath });
+      }
+      showToast({ type: "success", message: `Exported to ${result}` });
+    } catch (err) {
+      showToast({ type: "error", message: String(err) });
+    } finally {
+      setExportingOwnerZip(false);
+    }
+  };
 
   return (
     <div className="min-h-screen p-4 sm:p-6 lg:p-8">
@@ -111,16 +195,53 @@ export default function Explorer({ analysis, exportPath, sourceMode, onBack }: E
           search={search} onSearchChange={setSearch}
           typeFilter={typeFilter} onTypeFilterChange={setTypeFilter}
           duplicateFilter={duplicateFilter} onDuplicateFilterChange={setDuplicateFilter}
+          ownerFilter={ownerFilter} onOwnerFilterChange={setOwnerFilter} ownerOptions={ownerOptions}
           sortField={sortField} onSortFieldChange={setSortField}
           sortDirection={sortDirection} onSortDirectionChange={setSortDirection}
         />
 
-        {/* Results count */}
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          {filtered.length === analysis.workspaces.length
-            ? `${filtered.length} workspaces`
-            : `${filtered.length} of ${analysis.workspaces.length} workspaces`}
-        </p>
+        {/* Results count + per-owner ZIP */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {filtered.length === analysis.workspaces.length
+              ? `${filtered.length} workspaces`
+              : `${filtered.length} of ${analysis.workspaces.length} workspaces`}
+          </p>
+          {ownerFilter !== "all" && ownerScopedWorkspaces.length > 0 && (
+            <button
+              type="button"
+              onClick={handleExportOwnerZip}
+              disabled={exportingOwnerZip}
+              title={`Download an organized ZIP containing only ${ownerLabel}'s workspaces`}
+              className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors
+                hover:bg-gray-50
+                disabled:cursor-not-allowed disabled:opacity-50
+                dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700
+                focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
+            >
+              {exportingOwnerZip ? (
+                <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" /></svg>
+              ) : (
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+              )}
+              Download ZIP for {ownerLabel}
+            </button>
+          )}
+        </div>
+
+        {/* Owner export toast */}
+        {ownerToast && (
+          <div
+            role="status"
+            className={`animate-fade-in rounded-lg px-4 py-2 text-sm
+              ${ownerToast.type === "success"
+                ? "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400"
+                : "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400"
+              }`}
+          >
+            {ownerToast.message}
+          </div>
+        )}
 
         {/* Workspace cards */}
         <div className="space-y-3">

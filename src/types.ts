@@ -144,4 +144,6 @@ export type SortField = "name" | "collections" | "requests" | "updated";
 export type SortDirection = "asc" | "desc";
 export type WorkspaceTypeFilter = "all" | "personal" | "team" | "private" | "public" | "partner";
 export type DuplicateFilter = "all" | "has_duplicates" | "no_duplicates";
+// Owner filter is "all", the unknown sentinel from `lib/owner`, or an owner display name.
+export type OwnerFilter = string;
 

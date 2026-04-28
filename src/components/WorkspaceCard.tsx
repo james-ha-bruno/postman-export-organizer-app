@@ -2,6 +2,7 @@ import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import type { AnalysisResult, MemberInfo, SourceMode, WorkspaceAnalysis } from "../types";
+import { getOwner } from "../lib/owner";
 import DuplicateDetails from "./DuplicateDetails";
 
 interface WorkspaceCardProps {
@@ -29,13 +30,6 @@ function formatDate(dateStr: string | null): string {
   } catch {
     return dateStr;
   }
-}
-
-function getOwner(w: WorkspaceAnalysis): string | null {
-  const admin = w.members.find((m) => m.roles.includes("admin"));
-  if (admin?.name) return admin.name;
-  if (w.created_by) return w.created_by;
-  return null;
 }
 
 const roleBadgeColors: Record<string, string> = {
@@ -262,6 +256,7 @@ function CollectionsList({ collections }: { collections: WorkspaceAnalysis["coll
           <th className="pb-2 font-medium">Name</th>
           <th className="pb-2 font-medium text-right">Requests</th>
           <th className="pb-2 pr-4 font-medium text-right">Folders</th>
+          <th className="pb-2 pl-2 font-medium hidden sm:table-cell">Last Modified</th>
           <th className="pb-2 pl-2 font-medium hidden sm:table-cell">UID</th>
         </tr>
       </thead>
@@ -271,6 +266,7 @@ function CollectionsList({ collections }: { collections: WorkspaceAnalysis["coll
             <td className="py-1.5 font-medium truncate max-w-[200px]">{c.name}</td>
             <td className="py-1.5 text-right tabular-nums">{c.request_count}</td>
             <td className="py-1.5 pr-4 text-right tabular-nums">{c.folder_count}</td>
+            <td className="py-1.5 pl-2 hidden sm:table-cell text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{formatDate(c.updated_at)}</td>
             <td className="py-1.5 pl-2 hidden sm:table-cell font-mono text-xs text-gray-400 truncate max-w-[120px]">{c.uid}</td>
           </tr>
         ))}

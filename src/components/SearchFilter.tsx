@@ -1,4 +1,9 @@
-import type { SortField, SortDirection, WorkspaceTypeFilter, DuplicateFilter } from "../types";
+import type { SortField, SortDirection, WorkspaceTypeFilter, DuplicateFilter, OwnerFilter } from "../types";
+
+export interface OwnerOption {
+  value: string;
+  label: string;
+}
 
 interface SearchFilterProps {
   search: string;
@@ -7,6 +12,9 @@ interface SearchFilterProps {
   onTypeFilterChange: (value: WorkspaceTypeFilter) => void;
   duplicateFilter: DuplicateFilter;
   onDuplicateFilterChange: (value: DuplicateFilter) => void;
+  ownerFilter: OwnerFilter;
+  onOwnerFilterChange: (value: OwnerFilter) => void;
+  ownerOptions: OwnerOption[];
   sortField: SortField;
   onSortFieldChange: (value: SortField) => void;
   sortDirection: SortDirection;
@@ -17,6 +25,7 @@ export default function SearchFilter({
   search, onSearchChange,
   typeFilter, onTypeFilterChange,
   duplicateFilter, onDuplicateFilterChange,
+  ownerFilter, onOwnerFilterChange, ownerOptions,
   sortField, onSortFieldChange,
   sortDirection, onSortDirectionChange,
 }: SearchFilterProps) {
@@ -69,6 +78,21 @@ export default function SearchFilter({
         <option value="all">All duplicates</option>
         <option value="has_duplicates">Has duplicates</option>
         <option value="no_duplicates">No duplicates</option>
+      </select>
+
+      {/* Owner Filter */}
+      <select
+        value={ownerFilter}
+        onChange={(e) => onOwnerFilterChange(e.target.value)}
+        aria-label="Filter by workspace owner"
+        className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 max-w-[180px] truncate
+          focus-visible:border-accent-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500
+          dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+      >
+        <option value="all">All owners</option>
+        {ownerOptions.map((opt) => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
       </select>
 
       {/* Sort */}
