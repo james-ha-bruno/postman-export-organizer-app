@@ -164,6 +164,52 @@ pub async fn fetch_environment_json(
         .map_err(|e| format!("Failed to serialize environment: {}", e))
 }
 
+/// Fetch the collection listing from GET /collections and return a map of
+/// collection UID -> CollectionListItem (for createdAt/updatedAt metadata).
+/// Returns an empty map if the endpoint fails — non-fatal, matching `fetch_team_users`.
+pub async fn fetch_collections_list(api_key: &str) -> HashMap<String, CollectionListItem> {
+    let client = match build_client(api_key) {
+        Ok(c) => c,
+        Err(_) => return HashMap::new(),
+    };
+
+    let resp = match client
+        .get(format!("{}/collections", POSTMAN_API_BASE))
+        .send()
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("Warning: Failed to fetch collections list: {}", e);
+            return HashMap::new();
+        }
+    };
+
+    if !resp.status().is_success() {
+        eprintln!(
+            "Warning: Collections list API returned {}",
+            resp.status()
+        );
+        return HashMap::new();
+    }
+
+    let list_resp: PostmanCollectionsListResponse = match resp.json().await {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("Warning: Failed to parse collections list: {}", e);
+            return HashMap::new();
+        }
+    };
+
+    let mut map = HashMap::new();
+    for item in list_resp.collections {
+        if let Some(uid) = item.uid.clone() {
+            map.insert(uid, item);
+        }
+    }
+    map
+}
+
 /// Fetch team users from GET /users and return a map of user ID -> display name.
 /// Returns an empty map if the endpoint fails (e.g. 403 due to plan limitations).
 pub async fn fetch_team_users(api_key: &str) -> HashMap<String, String> {

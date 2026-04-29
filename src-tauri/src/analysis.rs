@@ -207,7 +207,11 @@ pub fn detect_duplicate_collections(collections: &[CollectionData]) -> Duplicate
     }
 }
 
-/// Build a workspace analysis from collections and environments assigned to it
+/// Build a workspace analysis from collections and environments assigned to it.
+/// `collections_meta` is an optional lookup of collection UID -> listing item
+/// (from `GET /collections`) used to populate `created_at` / `updated_at` on
+/// each `CollectionSummary`. Falls back to whatever the parsed `CollectionData`
+/// carries when the UID isn't in the map.
 fn build_workspace_analysis(
     ws_id: &str,
     ws_name: &str,
@@ -219,6 +223,7 @@ fn build_workspace_analysis(
     members: Vec<MemberInfo>,
     collections: Vec<CollectionData>,
     environments: Vec<EnvironmentData>,
+    collections_meta: Option<&HashMap<String, CollectionListItem>>,
 ) -> WorkspaceAnalysis {
     let all_requests: Vec<RequestData> =
         collections.iter().flat_map(|c| c.requests.clone()).collect();
@@ -233,13 +238,23 @@ fn build_workspace_analysis(
 
     let col_summaries: Vec<CollectionSummary> = collections
         .iter()
-        .map(|c| CollectionSummary {
-            name: c.name.clone(),
-            uid: c.uid.clone(),
-            request_count: c.request_count,
-            folder_count: c.folder_count,
-            created_at: None,
-            updated_at: None,
+        .map(|c| {
+            // Prefer API listing values when available; fall back to parser.
+            let meta = collections_meta.and_then(|m| m.get(&c.uid));
+            let created_at = meta
+                .and_then(|m| m.created_at.clone())
+                .or_else(|| c.created_at.clone());
+            let updated_at = meta
+                .and_then(|m| m.updated_at.clone())
+                .or_else(|| c.updated_at.clone());
+            CollectionSummary {
+                name: c.name.clone(),
+                uid: c.uid.clone(),
+                request_count: c.request_count,
+                folder_count: c.folder_count,
+                created_at,
+                updated_at,
+            }
         })
         .collect();
 
@@ -313,6 +328,11 @@ pub async fn analyze_export(
     // Fetch team users for ID-to-name resolution (returns empty map on failure)
     emit("workspaces", "Fetching team users…", 0, 0);
     let user_map = api::fetch_team_users(api_key).await;
+
+    // Fetch the collection listing once for createdAt/updatedAt metadata
+    // (lenient — empty map on failure).
+    emit("workspaces", "Fetching collections list…", 0, 0);
+    let collections_meta = api::fetch_collections_list(api_key).await;
 
     // Build a map of collection UID -> CollectionData
     let mut col_by_uid: HashMap<String, CollectionData> = HashMap::new();
@@ -428,6 +448,7 @@ pub async fn analyze_export(
                 members,
                 ws_collections,
                 ws_environments,
+                Some(&collections_meta),
             ));
         }
     }
@@ -457,6 +478,7 @@ pub async fn analyze_export(
             Vec::new(),
             unmatched_cols,
             unmatched_envs,
+            Some(&collections_meta),
         ));
     }
 
@@ -509,6 +531,11 @@ pub async fn analyze_from_api(
     // Fetch team users for ID-to-name resolution
     emit("workspaces", "Fetching team users…", 0, 0);
     let user_map = api::fetch_team_users(api_key).await;
+
+    // Fetch the collection listing once for createdAt/updatedAt metadata
+    // (lenient — empty map on failure).
+    emit("workspaces", "Fetching collections list…", 0, 0);
+    let collections_meta = api::fetch_collections_list(api_key).await;
 
     // Filter workspaces to know the total count
     let filtered_workspaces: Vec<_> = api_workspaces
@@ -664,6 +691,7 @@ pub async fn analyze_from_api(
                 members,
                 ws_collections,
                 ws_environments,
+                Some(&collections_meta),
             ));
         }
     }
@@ -749,6 +777,8 @@ mod tests {
                 folders: Vec::new(),
                 request_count: 0,
                 folder_count: 0,
+                created_at: None,
+                updated_at: None,
             },
             CollectionData {
                 name: "My API".to_string(),
@@ -757,6 +787,8 @@ mod tests {
                 folders: Vec::new(),
                 request_count: 0,
                 folder_count: 0,
+                created_at: None,
+                updated_at: None,
             },
         ];
 

@@ -138,6 +138,19 @@ pub fn parse_collection(data: &[u8]) -> Result<CollectionData, String> {
         .unwrap_or("")
         .to_string();
 
+    // Best-effort timestamps from `info.createdAt` / `info.updatedAt`. These are
+    // often absent in ZIP exports — that's fine, the field stays None.
+    let created_at = info
+        .get("createdAt")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
+    let updated_at = info
+        .get("updatedAt")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
+
     let items = json.get("item").and_then(|v| v.as_array());
     let mut requests = Vec::new();
     let mut folders = Vec::new();
@@ -156,6 +169,8 @@ pub fn parse_collection(data: &[u8]) -> Result<CollectionData, String> {
         folders,
         request_count,
         folder_count,
+        created_at,
+        updated_at,
     })
 }
 
@@ -342,6 +357,26 @@ mod tests {
         assert_eq!(col.uid, "test-123");
         assert_eq!(col.request_count, 1);
         assert_eq!(col.requests[0].method, "GET");
+        // Timestamps absent in this fixture
+        assert!(col.created_at.is_none());
+        assert!(col.updated_at.is_none());
+    }
+
+    #[test]
+    fn test_parse_collection_with_timestamps() {
+        let json = r#"{
+            "info": {
+                "_postman_id": "test-789",
+                "name": "Timestamped Collection",
+                "createdAt": "2024-05-01T12:00:00.000Z",
+                "updatedAt": "2024-09-15T08:30:00.000Z"
+            },
+            "item": []
+        }"#;
+
+        let col = parse_collection(json.as_bytes()).unwrap();
+        assert_eq!(col.created_at.as_deref(), Some("2024-05-01T12:00:00.000Z"));
+        assert_eq!(col.updated_at.as_deref(), Some("2024-09-15T08:30:00.000Z"));
     }
 
     #[test]
