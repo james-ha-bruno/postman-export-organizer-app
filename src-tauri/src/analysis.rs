@@ -212,6 +212,9 @@ pub fn detect_duplicate_collections(collections: &[CollectionData]) -> Duplicate
 /// (from `GET /collections`) used to populate `created_at` / `updated_at` on
 /// each `CollectionSummary`. Falls back to whatever the parsed `CollectionData`
 /// carries when the UID isn't in the map.
+/// `environments_meta` does the same for environments via `GET /environments`,
+/// keyed by environment id (and uid as alternate). Falls back to parsed
+/// `EnvironmentData.created_at` / `updated_at` when missing.
 fn build_workspace_analysis(
     ws_id: &str,
     ws_name: &str,
@@ -224,6 +227,7 @@ fn build_workspace_analysis(
     collections: Vec<CollectionData>,
     environments: Vec<EnvironmentData>,
     collections_meta: Option<&HashMap<String, CollectionListItem>>,
+    environments_meta: Option<&HashMap<String, EnvironmentListItem>>,
 ) -> WorkspaceAnalysis {
     let all_requests: Vec<RequestData> =
         collections.iter().flat_map(|c| c.requests.clone()).collect();
@@ -260,12 +264,22 @@ fn build_workspace_analysis(
 
     let env_summaries: Vec<EnvironmentSummary> = environments
         .iter()
-        .map(|e| EnvironmentSummary {
-            id: e.id.clone(),
-            name: e.name.clone(),
-            variable_count: e.values.len(),
-            created_at: None,
-            updated_at: None,
+        .map(|e| {
+            // Prefer API listing values when available; fall back to parser.
+            let meta = environments_meta.and_then(|m| m.get(&e.id));
+            let created_at = meta
+                .and_then(|m| m.created_at.clone())
+                .or_else(|| e.created_at.clone());
+            let updated_at = meta
+                .and_then(|m| m.updated_at.clone())
+                .or_else(|| e.updated_at.clone());
+            EnvironmentSummary {
+                id: e.id.clone(),
+                name: e.name.clone(),
+                variable_count: e.values.len(),
+                created_at,
+                updated_at,
+            }
         })
         .collect();
 
@@ -333,6 +347,11 @@ pub async fn analyze_export(
     // (lenient — empty map on failure).
     emit("workspaces", "Fetching collections list…", 0, 0);
     let collections_meta = api::fetch_collections_list(api_key).await;
+
+    // Fetch the environment listing once for createdAt/updatedAt metadata
+    // (lenient — empty map on failure).
+    emit("workspaces", "Fetching environments list…", 0, 0);
+    let environments_meta = api::fetch_environments_list(api_key).await;
 
     // Build a map of collection UID -> CollectionData
     let mut col_by_uid: HashMap<String, CollectionData> = HashMap::new();
@@ -449,6 +468,7 @@ pub async fn analyze_export(
                 ws_collections,
                 ws_environments,
                 Some(&collections_meta),
+                Some(&environments_meta),
             ));
         }
     }
@@ -479,6 +499,7 @@ pub async fn analyze_export(
             unmatched_cols,
             unmatched_envs,
             Some(&collections_meta),
+            Some(&environments_meta),
         ));
     }
 
@@ -536,6 +557,11 @@ pub async fn analyze_from_api(
     // (lenient — empty map on failure).
     emit("workspaces", "Fetching collections list…", 0, 0);
     let collections_meta = api::fetch_collections_list(api_key).await;
+
+    // Fetch the environment listing once for createdAt/updatedAt metadata
+    // (lenient — empty map on failure).
+    emit("workspaces", "Fetching environments list…", 0, 0);
+    let environments_meta = api::fetch_environments_list(api_key).await;
 
     // Filter workspaces to know the total count
     let filtered_workspaces: Vec<_> = api_workspaces
@@ -692,6 +718,7 @@ pub async fn analyze_from_api(
                 ws_collections,
                 ws_environments,
                 Some(&collections_meta),
+                Some(&environments_meta),
             ));
         }
     }

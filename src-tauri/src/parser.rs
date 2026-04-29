@@ -182,6 +182,19 @@ pub fn parse_environment(data: &[u8]) -> Result<EnvironmentData, String> {
     let id = json.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
     let name = json.get("name").and_then(|v| v.as_str()).unwrap_or("Unnamed").to_string();
 
+    // Best-effort timestamps from top-level `createdAt` / `updatedAt`. These are
+    // often absent in ZIP exports — that's fine, the field stays None.
+    let created_at = json
+        .get("createdAt")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
+    let updated_at = json
+        .get("updatedAt")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
+
     let values = if let Some(vals) = json.get("values").and_then(|v| v.as_array()) {
         vals.iter()
             .filter_map(|v| {
@@ -197,7 +210,7 @@ pub fn parse_environment(data: &[u8]) -> Result<EnvironmentData, String> {
         Vec::new()
     };
 
-    Ok(EnvironmentData { id, name, values })
+    Ok(EnvironmentData { id, name, values, created_at, updated_at })
 }
 
 /// Parse a Postman Data Export zip file
@@ -417,5 +430,23 @@ mod tests {
         assert_eq!(env.name, "Production");
         assert_eq!(env.id, "env-123");
         assert_eq!(env.values.len(), 2);
+        // Timestamps absent in this fixture
+        assert!(env.created_at.is_none());
+        assert!(env.updated_at.is_none());
+    }
+
+    #[test]
+    fn test_parse_environment_with_timestamps() {
+        let json = r#"{
+            "id": "env-789",
+            "name": "Timestamped Env",
+            "createdAt": "2024-05-01T12:00:00.000Z",
+            "updatedAt": "2024-09-15T08:30:00.000Z",
+            "values": []
+        }"#;
+
+        let env = parse_environment(json.as_bytes()).unwrap();
+        assert_eq!(env.created_at.as_deref(), Some("2024-05-01T12:00:00.000Z"));
+        assert_eq!(env.updated_at.as_deref(), Some("2024-09-15T08:30:00.000Z"));
     }
 }

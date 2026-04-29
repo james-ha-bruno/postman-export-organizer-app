@@ -41,6 +41,10 @@ pub struct EnvironmentData {
     pub id: String,
     pub name: String,
     pub values: Vec<EnvVariable>,
+    #[serde(default)]
+    pub created_at: Option<String>,
+    #[serde(default)]
+    pub updated_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -152,6 +156,26 @@ pub struct CollectionListItem {
     pub uid: Option<String>,
     #[serde(default)]
     pub id: Option<String>,
+    #[serde(rename = "createdAt", default)]
+    pub created_at: Option<String>,
+    #[serde(rename = "updatedAt", default)]
+    pub updated_at: Option<String>,
+}
+
+// === Postman Environments list (GET /environments) ===
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PostmanEnvironmentsListResponse {
+    #[serde(default)]
+    pub environments: Vec<EnvironmentListItem>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnvironmentListItem {
+    #[serde(default)]
+    pub id: Option<String>,
+    #[serde(default)]
+    pub uid: Option<String>,
     #[serde(rename = "createdAt", default)]
     pub created_at: Option<String>,
     #[serde(rename = "updatedAt", default)]
