@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import type {
+  AdvancedFilters,
   AnalysisResult,
   WorkspaceAnalysis,
   SortField,
@@ -11,9 +12,12 @@ import type {
   OwnerFilter,
   SourceMode,
 } from "../types";
+import { DEFAULT_ADVANCED_FILTERS } from "../types";
 import { getOwnerKey, slugifyOwner, UNKNOWN_OWNER_KEY, UNKNOWN_OWNER_LABEL } from "../lib/owner";
+import { applyAdvancedFilters } from "../lib/filters";
 import SummaryBar from "./SummaryBar";
 import SearchFilter, { type OwnerOption } from "./SearchFilter";
+import AdvancedFiltersPanel from "./AdvancedFilters";
 import WorkspaceCard from "./WorkspaceCard";
 import ExportPanel from "./ExportPanel";
 
@@ -45,13 +49,21 @@ export default function Explorer({ analysis, exportPath, sourceMode, onBack }: E
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>("all");
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>(DEFAULT_ADVANCED_FILTERS);
   const [exportingOwnerZip, setExportingOwnerZip] = useState(false);
   const [ownerToast, setOwnerToast] = useState<Toast | null>(null);
+
+  // Single source of truth: advanced filters narrow the analysis once and
+  // every consumer (visible list, ExportPanel, per-owner ZIP) sees the same view.
+  const baseFilteredAnalysis = useMemo(
+    () => applyAdvancedFilters(analysis, advancedFilters),
+    [analysis, advancedFilters],
+  );
 
   const ownerOptions = useMemo<OwnerOption[]>(() => {
     const named = new Set<string>();
     let hasUnknown = false;
-    for (const w of analysis.workspaces) {
+    for (const w of baseFilteredAnalysis.workspaces) {
       const key = getOwnerKey(w);
       if (key === UNKNOWN_OWNER_KEY) {
         hasUnknown = true;
@@ -63,10 +75,10 @@ export default function Explorer({ analysis, exportPath, sourceMode, onBack }: E
     const opts: OwnerOption[] = sorted.map((name) => ({ value: name, label: name }));
     if (hasUnknown) opts.push({ value: UNKNOWN_OWNER_KEY, label: UNKNOWN_OWNER_LABEL });
     return opts;
-  }, [analysis.workspaces]);
+  }, [baseFilteredAnalysis.workspaces]);
 
   const filtered = useMemo(() => {
-    let result = analysis.workspaces;
+    let result = baseFilteredAnalysis.workspaces;
 
     // Search
     if (search.trim()) {
@@ -112,14 +124,16 @@ export default function Explorer({ analysis, exportPath, sourceMode, onBack }: E
     });
 
     return result;
-  }, [analysis.workspaces, search, typeFilter, duplicateFilter, ownerFilter, sortField, sortDirection]);
+  }, [baseFilteredAnalysis.workspaces, search, typeFilter, duplicateFilter, ownerFilter, sortField, sortDirection]);
 
   // Workspaces matching only the owner filter — used to build the per-owner ZIP
   // (independent of search/type/duplicate filters so behaviour stays predictable).
+  // Sourced from the advanced-filtered analysis so the per-owner ZIP respects
+  // the same filters the user sees.
   const ownerScopedWorkspaces = useMemo(() => {
     if (ownerFilter === "all") return [];
-    return analysis.workspaces.filter((w) => getOwnerKey(w) === ownerFilter);
-  }, [analysis.workspaces, ownerFilter]);
+    return baseFilteredAnalysis.workspaces.filter((w) => getOwnerKey(w) === ownerFilter);
+  }, [baseFilteredAnalysis.workspaces, ownerFilter]);
 
   const ownerLabel = ownerFilter === "all"
     ? ""
@@ -146,7 +160,7 @@ export default function Explorer({ analysis, exportPath, sourceMode, onBack }: E
         return;
       }
       const filteredAnalysis: AnalysisResult = {
-        generated_at: analysis.generated_at,
+        generated_at: baseFilteredAnalysis.generated_at,
         workspaces: ownerScopedWorkspaces,
       };
       const analysisJson = JSON.stringify(filteredAnalysis);
@@ -200,6 +214,9 @@ export default function Explorer({ analysis, exportPath, sourceMode, onBack }: E
           sortDirection={sortDirection} onSortDirectionChange={setSortDirection}
         />
 
+        {/* Advanced filters */}
+        <AdvancedFiltersPanel filters={advancedFilters} onChange={setAdvancedFilters} />
+
         {/* Results count + per-owner ZIP */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -250,12 +267,12 @@ export default function Explorer({ analysis, exportPath, sourceMode, onBack }: E
               <p className="text-sm text-gray-500 dark:text-gray-400">No workspaces match your filters</p>
             </div>
           ) : (
-            filtered.map((w) => <WorkspaceCard key={w.workspace_id} workspace={w} exportPath={exportPath} sourceMode={sourceMode} analysis={analysis} />)
+            filtered.map((w) => <WorkspaceCard key={w.workspace_id} workspace={w} exportPath={exportPath} sourceMode={sourceMode} analysis={baseFilteredAnalysis} />)
           )}
         </div>
 
         {/* Export panel */}
-        <ExportPanel analysis={analysis} exportPath={exportPath} sourceMode={sourceMode} />
+        <ExportPanel analysis={baseFilteredAnalysis} exportPath={exportPath} sourceMode={sourceMode} />
       </div>
     </div>
   );
