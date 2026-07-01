@@ -154,7 +154,7 @@ export default function DownloadZipMenu({
             <svg className="mt-0.5 h-4 w-4 flex-shrink-0 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
             <span className="min-w-0">
               <span className="block font-medium text-gray-900 dark:text-white">Organized folders</span>
-              <span className="block text-xs text-gray-500 dark:text-gray-400">Human-browsable — for archival &amp; review</span>
+              <span className="block text-xs text-gray-500 dark:text-gray-400">Browsable folders with readable names — for archival &amp; review</span>
             </span>
           </button>
           <div className="border-t border-gray-100 dark:border-gray-700" />
@@ -170,7 +170,7 @@ export default function DownloadZipMenu({
             <svg className="mt-0.5 h-4 w-4 flex-shrink-0 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 12l8-4.5M12 12v9M12 12L4 7.5" /></svg>
             <span className="min-w-0">
               <span className="block font-medium text-gray-900 dark:text-white">Bruno Bulk Import</span>
-              <span className="block text-xs text-gray-500 dark:text-gray-400">Drop into Bruno App Import</span>
+              <span className="block text-xs text-gray-500 dark:text-gray-400">Drag into Bruno 3.5+ to import collections &amp; environments</span>
             </span>
           </button>
         </div>

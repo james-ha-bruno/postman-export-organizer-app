@@ -83,13 +83,13 @@ export default function ExportPanel({ analysis, exportPath, sourceMode }: Export
     {
       type: "zip",
       label: "Organized folders",
-      desc: "Human-browsable — for archival & review",
+      desc: "Browsable folders with readable names — for archival & review",
       icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0l-3-3m3 3l3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" /></svg>,
     },
     {
       type: "bruno",
       label: "Bruno Bulk Import",
-      desc: "Drop into Bruno App Import",
+      desc: "Drag into Bruno 3.5+ to import collections & environments",
       icon: (
         <span className="relative inline-flex h-5 w-5">
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M21 8V5a2 2 0 00-2-2H5a2 2 0 00-2 2v3m18 0v11a2 2 0 01-2 2H5a2 2 0 01-2-2V8m18 0H3m6 4h6" /></svg>
