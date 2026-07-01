@@ -2992,7 +2992,7 @@ dependencies = [
 
 [[package]]
 name = "postman-export-organizer"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "csv",
