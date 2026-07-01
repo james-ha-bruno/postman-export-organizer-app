@@ -20,6 +20,7 @@ import SearchFilter, { type OwnerOption } from "./SearchFilter";
 import AdvancedFiltersPanel from "./AdvancedFilters";
 import WorkspaceCard from "./WorkspaceCard";
 import ExportPanel from "./ExportPanel";
+import DownloadZipMenu from "./DownloadZipMenu";
 
 interface ExplorerProps {
   analysis: AnalysisResult;
@@ -50,8 +51,6 @@ export default function Explorer({ analysis, exportPath, sourceMode, onBack }: E
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>(DEFAULT_ADVANCED_FILTERS);
-  const [exportingOwnerZip, setExportingOwnerZip] = useState(false);
-  const [exportingOwnerBrunoZip, setExportingOwnerBrunoZip] = useState(false);
   const [ownerToast, setOwnerToast] = useState<Toast | null>(null);
 
   // Single source of truth: advanced filters narrow the analysis once and
@@ -150,16 +149,12 @@ export default function Explorer({ analysis, exportPath, sourceMode, onBack }: E
   const handleExportOwnerZip = async () => {
     if (ownerFilter === "all" || ownerScopedWorkspaces.length === 0) return;
     try {
-      setExportingOwnerZip(true);
       const slug = slugifyOwner(ownerLabel) || "owner";
       const outputPath = await save({
         defaultPath: `postman-export-${slug}.zip`,
         filters: [{ name: "ZIP", extensions: ["zip"] }],
       });
-      if (!outputPath) {
-        setExportingOwnerZip(false);
-        return;
-      }
+      if (!outputPath) return;
       const filteredAnalysis: AnalysisResult = {
         generated_at: baseFilteredAnalysis.generated_at,
         workspaces: ownerScopedWorkspaces,
@@ -174,24 +169,18 @@ export default function Explorer({ analysis, exportPath, sourceMode, onBack }: E
       showToast({ type: "success", message: `Exported to ${result}` });
     } catch (err) {
       showToast({ type: "error", message: String(err) });
-    } finally {
-      setExportingOwnerZip(false);
     }
   };
 
   const handleExportOwnerBrunoZip = async () => {
     if (ownerFilter === "all" || ownerScopedWorkspaces.length === 0) return;
     try {
-      setExportingOwnerBrunoZip(true);
       const slug = slugifyOwner(ownerLabel) || "owner";
       const outputPath = await save({
         defaultPath: `postman-export-bruno-${slug}.zip`,
         filters: [{ name: "ZIP", extensions: ["zip"] }],
       });
-      if (!outputPath) {
-        setExportingOwnerBrunoZip(false);
-        return;
-      }
+      if (!outputPath) return;
       const filteredAnalysis: AnalysisResult = {
         generated_at: baseFilteredAnalysis.generated_at,
         workspaces: ownerScopedWorkspaces,
@@ -206,8 +195,6 @@ export default function Explorer({ analysis, exportPath, sourceMode, onBack }: E
       showToast({ type: "success", message: `Exported to ${result}` });
     } catch (err) {
       showToast({ type: "error", message: String(err) });
-    } finally {
-      setExportingOwnerBrunoZip(false);
     }
   };
 
@@ -258,45 +245,17 @@ export default function Explorer({ analysis, exportPath, sourceMode, onBack }: E
               : `${filtered.length} of ${analysis.workspaces.length} workspaces`}
           </p>
           {ownerFilter !== "all" && ownerScopedWorkspaces.length > 0 && (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleExportOwnerZip}
-                disabled={exportingOwnerZip || exportingOwnerBrunoZip}
-                title="Human-readable folders grouped by workspace. For archival & manual review."
-                className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors
-                  hover:bg-gray-50
-                  disabled:cursor-not-allowed disabled:opacity-50
-                  dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700
-                  focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
-              >
-                {exportingOwnerZip ? (
-                  <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" /></svg>
-                ) : (
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                )}
-                Organized ZIP for {ownerLabel}
-              </button>
-              <button
-                type="button"
-                onClick={handleExportOwnerBrunoZip}
-                disabled={exportingOwnerZip || exportingOwnerBrunoZip}
-                title="Bulk-Import-ready ZIP for Bruno 3.5+."
-                aria-label={`Bruno ZIP for ${ownerLabel}`}
-                className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors
-                  hover:bg-gray-50
-                  disabled:cursor-not-allowed disabled:opacity-50
-                  dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700
-                  focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
-              >
-                {exportingOwnerBrunoZip ? (
-                  <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" /></svg>
-                ) : (
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 8V5a2 2 0 00-2-2H5a2 2 0 00-2 2v3m18 0v11a2 2 0 01-2 2H5a2 2 0 01-2-2V8m18 0H3m6 4h6" /></svg>
-                )}
-                Bruno ZIP for {ownerLabel}
-              </button>
-            </div>
+            <DownloadZipMenu
+              label={`Download ZIP for ${ownerLabel}`}
+              title={`Download ZIP for ${ownerLabel}`}
+              onOrganized={handleExportOwnerZip}
+              onBruno={handleExportOwnerBrunoZip}
+              triggerClassName="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors
+                hover:bg-gray-50
+                disabled:cursor-not-allowed disabled:opacity-50
+                dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700
+                focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
+            />
           )}
         </div>
 

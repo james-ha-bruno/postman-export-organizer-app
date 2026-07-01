@@ -4,6 +4,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import type { AnalysisResult, MemberInfo, SourceMode, WorkspaceAnalysis } from "../types";
 import { getOwner } from "../lib/owner";
 import DuplicateDetails from "./DuplicateDetails";
+import DownloadZipMenu from "./DownloadZipMenu";
 
 interface WorkspaceCardProps {
   workspace: WorkspaceAnalysis;
@@ -54,24 +55,18 @@ interface Toast {
 export default function WorkspaceCard({ workspace: w, exportPath, sourceMode, analysis }: WorkspaceCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<"collections" | "environments" | "duplicates" | "members">("collections");
-  const [exporting, setExporting] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const dupes = hasDuplicates(w);
   const badgeColor = typeBadgeColors[w.workspace_type] || typeBadgeColors.private;
 
-  const handleExportWorkspace = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleExportWorkspace = async () => {
     try {
-      setExporting(true);
       const safeName = w.workspace_name.replace(/[^a-zA-Z0-9_-]/g, "_");
       const outputPath = await save({
         defaultPath: `${safeName}_export.zip`,
         filters: [{ name: "ZIP", extensions: ["zip"] }],
       });
-      if (!outputPath) {
-        setExporting(false);
-        return;
-      }
+      if (!outputPath) return;
       const singleWorkspaceAnalysis: AnalysisResult = {
         generated_at: analysis.generated_at,
         workspaces: [w],
@@ -95,24 +90,17 @@ export default function WorkspaceCard({ workspace: w, exportPath, sourceMode, an
     } catch (err) {
       setToast({ type: "error", message: String(err) });
       setTimeout(() => setToast(null), 4000);
-    } finally {
-      setExporting(false);
     }
   };
 
-  const handleExportWorkspaceBruno = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleExportWorkspaceBruno = async () => {
     try {
-      setExporting(true);
       const safeName = w.workspace_name.replace(/[^a-zA-Z0-9_-]/g, "_");
       const outputPath = await save({
         defaultPath: `${safeName}_export_bruno.zip`,
         filters: [{ name: "ZIP", extensions: ["zip"] }],
       });
-      if (!outputPath) {
-        setExporting(false);
-        return;
-      }
+      if (!outputPath) return;
       const singleWorkspaceAnalysis: AnalysisResult = {
         generated_at: analysis.generated_at,
         workspaces: [w],
@@ -136,8 +124,6 @@ export default function WorkspaceCard({ workspace: w, exportPath, sourceMode, an
     } catch (err) {
       setToast({ type: "error", message: String(err) });
       setTimeout(() => setToast(null), 4000);
-    } finally {
-      setExporting(false);
     }
   };
 
@@ -240,44 +226,18 @@ export default function WorkspaceCard({ workspace: w, exportPath, sourceMode, an
                 </button>
               ))}
             </div>
-            <button
-              type="button"
-              onClick={handleExportWorkspace}
-              disabled={exporting}
-              title="Download organized ZIP for this workspace — human-browsable folders. For archival or manual review."
-              aria-label="Download organized ZIP for this workspace — human-browsable folders. For archival or manual review."
-              className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-gray-500 transition-colors
-                hover:bg-gray-100 hover:text-gray-700
-                disabled:cursor-not-allowed disabled:opacity-50
-                dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200
-                focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
-            >
-              {exporting ? (
-                <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" /></svg>
-              ) : (
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-              )}
-              Organized
-            </button>
-            <button
-              type="button"
-              onClick={handleExportWorkspaceBruno}
-              disabled={exporting}
-              aria-label="Download Bulk-Import ZIP for this workspace — ready to drop into Bruno 3.5+ Import."
-              title="Download Bulk-Import ZIP for this workspace — ready to drop into Bruno 3.5+ Import."
-              className="mr-2 ml-1 flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-gray-500 transition-colors
-                hover:bg-gray-100 hover:text-gray-700
-                disabled:cursor-not-allowed disabled:opacity-50
-                dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200
-                focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
-            >
-              {exporting ? (
-                <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" /></svg>
-              ) : (
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 12l8-4.5M12 12v9M12 12L4 7.5" /></svg>
-              )}
-              Bruno
-            </button>
+            <div className="mr-2 ml-1">
+              <DownloadZipMenu
+                label="Download ZIP"
+                onOrganized={handleExportWorkspace}
+                onBruno={handleExportWorkspaceBruno}
+                triggerClassName="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-gray-500 transition-colors
+                  hover:bg-gray-100 hover:text-gray-700
+                  disabled:cursor-not-allowed disabled:opacity-50
+                  dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200
+                  focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
+              />
+            </div>
           </div>
           <div className="max-h-80 overflow-y-auto p-4 scrollbar-thin" role="tabpanel">
             {activeTab === "collections" && <CollectionsList collections={w.collections} />}
