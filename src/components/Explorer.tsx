@@ -1,23 +1,37 @@
 import { useState, useMemo } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { save } from "@tauri-apps/plugin-dialog";
 import type {
+  AdvancedFilters,
   AnalysisResult,
   WorkspaceAnalysis,
   SortField,
   SortDirection,
   WorkspaceTypeFilter,
   DuplicateFilter,
+  OwnerFilter,
   SourceMode,
 } from "../types";
+import { DEFAULT_ADVANCED_FILTERS } from "../types";
+import { getOwnerKey, slugifyOwner, UNKNOWN_OWNER_KEY, UNKNOWN_OWNER_LABEL } from "../lib/owner";
+import { applyAdvancedFilters } from "../lib/filters";
 import SummaryBar from "./SummaryBar";
-import SearchFilter from "./SearchFilter";
+import SearchFilter, { type OwnerOption } from "./SearchFilter";
+import AdvancedFiltersPanel from "./AdvancedFilters";
 import WorkspaceCard from "./WorkspaceCard";
 import ExportPanel from "./ExportPanel";
+import DownloadZipMenu from "./DownloadZipMenu";
 
 interface ExplorerProps {
   analysis: AnalysisResult;
   exportPath: string;
   sourceMode: SourceMode;
   onBack: () => void;
+}
+
+interface Toast {
+  type: "success" | "error";
+  message: string;
 }
 
 function hasDuplicates(w: WorkspaceAnalysis): boolean {
@@ -33,11 +47,38 @@ export default function Explorer({ analysis, exportPath, sourceMode, onBack }: E
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<WorkspaceTypeFilter>("all");
   const [duplicateFilter, setDuplicateFilter] = useState<DuplicateFilter>("all");
+  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>("all");
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>(DEFAULT_ADVANCED_FILTERS);
+  const [ownerToast, setOwnerToast] = useState<Toast | null>(null);
+
+  // Single source of truth: advanced filters narrow the analysis once and
+  // every consumer (visible list, ExportPanel, per-owner ZIP) sees the same view.
+  const baseFilteredAnalysis = useMemo(
+    () => applyAdvancedFilters(analysis, advancedFilters),
+    [analysis, advancedFilters],
+  );
+
+  const ownerOptions = useMemo<OwnerOption[]>(() => {
+    const named = new Set<string>();
+    let hasUnknown = false;
+    for (const w of baseFilteredAnalysis.workspaces) {
+      const key = getOwnerKey(w);
+      if (key === UNKNOWN_OWNER_KEY) {
+        hasUnknown = true;
+      } else {
+        named.add(key);
+      }
+    }
+    const sorted = Array.from(named).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+    const opts: OwnerOption[] = sorted.map((name) => ({ value: name, label: name }));
+    if (hasUnknown) opts.push({ value: UNKNOWN_OWNER_KEY, label: UNKNOWN_OWNER_LABEL });
+    return opts;
+  }, [baseFilteredAnalysis.workspaces]);
 
   const filtered = useMemo(() => {
-    let result = analysis.workspaces;
+    let result = baseFilteredAnalysis.workspaces;
 
     // Search
     if (search.trim()) {
@@ -55,6 +96,11 @@ export default function Explorer({ analysis, exportPath, sourceMode, onBack }: E
       result = result.filter(hasDuplicates);
     } else if (duplicateFilter === "no_duplicates") {
       result = result.filter((w) => !hasDuplicates(w));
+    }
+
+    // Owner filter
+    if (ownerFilter !== "all") {
+      result = result.filter((w) => getOwnerKey(w) === ownerFilter);
     }
 
     // Sort
@@ -78,7 +124,79 @@ export default function Explorer({ analysis, exportPath, sourceMode, onBack }: E
     });
 
     return result;
-  }, [analysis.workspaces, search, typeFilter, duplicateFilter, sortField, sortDirection]);
+  }, [baseFilteredAnalysis.workspaces, search, typeFilter, duplicateFilter, ownerFilter, sortField, sortDirection]);
+
+  // Workspaces matching only the owner filter — used to build the per-owner ZIP
+  // (independent of search/type/duplicate filters so behaviour stays predictable).
+  // Sourced from the advanced-filtered analysis so the per-owner ZIP respects
+  // the same filters the user sees.
+  const ownerScopedWorkspaces = useMemo(() => {
+    if (ownerFilter === "all") return [];
+    return baseFilteredAnalysis.workspaces.filter((w) => getOwnerKey(w) === ownerFilter);
+  }, [baseFilteredAnalysis.workspaces, ownerFilter]);
+
+  const ownerLabel = ownerFilter === "all"
+    ? ""
+    : ownerFilter === UNKNOWN_OWNER_KEY
+      ? UNKNOWN_OWNER_LABEL
+      : ownerFilter;
+
+  const showToast = (t: Toast) => {
+    setOwnerToast(t);
+    setTimeout(() => setOwnerToast(null), 4000);
+  };
+
+  const handleExportOwnerZip = async () => {
+    if (ownerFilter === "all" || ownerScopedWorkspaces.length === 0) return;
+    try {
+      const slug = slugifyOwner(ownerLabel) || "owner";
+      const outputPath = await save({
+        defaultPath: `postman-export-${slug}.zip`,
+        filters: [{ name: "ZIP", extensions: ["zip"] }],
+      });
+      if (!outputPath) return;
+      const filteredAnalysis: AnalysisResult = {
+        generated_at: baseFilteredAnalysis.generated_at,
+        workspaces: ownerScopedWorkspaces,
+      };
+      const analysisJson = JSON.stringify(filteredAnalysis);
+      let result: string;
+      if (sourceMode === "api") {
+        result = await invoke<string>("export_organized_zip_from_api", { analysisJson, outputPath });
+      } else {
+        result = await invoke<string>("export_organized_zip", { analysisJson, exportPath, outputPath });
+      }
+      showToast({ type: "success", message: `Exported to ${result}` });
+    } catch (err) {
+      showToast({ type: "error", message: String(err) });
+    }
+  };
+
+  const handleExportOwnerBrunoZip = async () => {
+    if (ownerFilter === "all" || ownerScopedWorkspaces.length === 0) return;
+    try {
+      const slug = slugifyOwner(ownerLabel) || "owner";
+      const outputPath = await save({
+        defaultPath: `postman-export-bruno-${slug}.zip`,
+        filters: [{ name: "ZIP", extensions: ["zip"] }],
+      });
+      if (!outputPath) return;
+      const filteredAnalysis: AnalysisResult = {
+        generated_at: baseFilteredAnalysis.generated_at,
+        workspaces: ownerScopedWorkspaces,
+      };
+      const analysisJson = JSON.stringify(filteredAnalysis);
+      let result: string;
+      if (sourceMode === "api") {
+        result = await invoke<string>("export_bruno_zip_from_api", { analysisJson, outputPath });
+      } else {
+        result = await invoke<string>("export_bruno_zip", { analysisJson, exportPath, outputPath });
+      }
+      showToast({ type: "success", message: `Exported to ${result}` });
+    } catch (err) {
+      showToast({ type: "error", message: String(err) });
+    }
+  };
 
   return (
     <div className="min-h-screen p-4 sm:p-6 lg:p-8">
@@ -111,16 +229,49 @@ export default function Explorer({ analysis, exportPath, sourceMode, onBack }: E
           search={search} onSearchChange={setSearch}
           typeFilter={typeFilter} onTypeFilterChange={setTypeFilter}
           duplicateFilter={duplicateFilter} onDuplicateFilterChange={setDuplicateFilter}
+          ownerFilter={ownerFilter} onOwnerFilterChange={setOwnerFilter} ownerOptions={ownerOptions}
           sortField={sortField} onSortFieldChange={setSortField}
           sortDirection={sortDirection} onSortDirectionChange={setSortDirection}
         />
 
-        {/* Results count */}
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          {filtered.length === analysis.workspaces.length
-            ? `${filtered.length} workspaces`
-            : `${filtered.length} of ${analysis.workspaces.length} workspaces`}
-        </p>
+        {/* Advanced filters */}
+        <AdvancedFiltersPanel filters={advancedFilters} onChange={setAdvancedFilters} />
+
+        {/* Results count + per-owner ZIP */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {filtered.length === analysis.workspaces.length
+              ? `${filtered.length} workspaces`
+              : `${filtered.length} of ${analysis.workspaces.length} workspaces`}
+          </p>
+          {ownerFilter !== "all" && ownerScopedWorkspaces.length > 0 && (
+            <DownloadZipMenu
+              label={`Download ZIP for ${ownerLabel}`}
+              title={`Download ZIP for ${ownerLabel}`}
+              onOrganized={handleExportOwnerZip}
+              onBruno={handleExportOwnerBrunoZip}
+              triggerClassName="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors
+                hover:bg-gray-50
+                disabled:cursor-not-allowed disabled:opacity-50
+                dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700
+                focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
+            />
+          )}
+        </div>
+
+        {/* Owner export toast */}
+        {ownerToast && (
+          <div
+            role="status"
+            className={`animate-fade-in rounded-lg px-4 py-2 text-sm
+              ${ownerToast.type === "success"
+                ? "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400"
+                : "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400"
+              }`}
+          >
+            {ownerToast.message}
+          </div>
+        )}
 
         {/* Workspace cards */}
         <div className="space-y-3">
@@ -129,12 +280,12 @@ export default function Explorer({ analysis, exportPath, sourceMode, onBack }: E
               <p className="text-sm text-gray-500 dark:text-gray-400">No workspaces match your filters</p>
             </div>
           ) : (
-            filtered.map((w) => <WorkspaceCard key={w.workspace_id} workspace={w} exportPath={exportPath} sourceMode={sourceMode} analysis={analysis} />)
+            filtered.map((w) => <WorkspaceCard key={w.workspace_id} workspace={w} exportPath={exportPath} sourceMode={sourceMode} analysis={baseFilteredAnalysis} />)
           )}
         </div>
 
         {/* Export panel */}
-        <ExportPanel analysis={analysis} exportPath={exportPath} sourceMode={sourceMode} />
+        <ExportPanel analysis={baseFilteredAnalysis} exportPath={exportPath} sourceMode={sourceMode} />
       </div>
     </div>
   );

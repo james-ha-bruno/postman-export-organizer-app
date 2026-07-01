@@ -18,6 +18,10 @@ pub struct CollectionData {
     pub folders: Vec<String>,
     pub request_count: usize,
     pub folder_count: usize,
+    #[serde(default)]
+    pub created_at: Option<String>,
+    #[serde(default)]
+    pub updated_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,6 +41,10 @@ pub struct EnvironmentData {
     pub id: String,
     pub name: String,
     pub values: Vec<EnvVariable>,
+    #[serde(default)]
+    pub created_at: Option<String>,
+    #[serde(default)]
+    pub updated_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -132,6 +140,46 @@ pub struct PostmanEnvironmentRef {
     pub id: Option<String>,
     pub uid: Option<String>,
     pub name: Option<String>,
+}
+
+// === Postman Collections list (GET /collections) ===
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PostmanCollectionsListResponse {
+    #[serde(default)]
+    pub collections: Vec<CollectionListItem>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CollectionListItem {
+    #[serde(default)]
+    pub uid: Option<String>,
+    #[serde(default)]
+    pub id: Option<String>,
+    #[serde(rename = "createdAt", default)]
+    pub created_at: Option<String>,
+    #[serde(rename = "updatedAt", default)]
+    pub updated_at: Option<String>,
+}
+
+// === Postman Environments list (GET /environments) ===
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PostmanEnvironmentsListResponse {
+    #[serde(default)]
+    pub environments: Vec<EnvironmentListItem>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnvironmentListItem {
+    #[serde(default)]
+    pub id: Option<String>,
+    #[serde(default)]
+    pub uid: Option<String>,
+    #[serde(rename = "createdAt", default)]
+    pub created_at: Option<String>,
+    #[serde(rename = "updatedAt", default)]
+    pub updated_at: Option<String>,
 }
 
 // === Postman Users API (GET /users) ===

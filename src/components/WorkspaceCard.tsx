@@ -2,7 +2,9 @@ import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import type { AnalysisResult, MemberInfo, SourceMode, WorkspaceAnalysis } from "../types";
+import { getOwner } from "../lib/owner";
 import DuplicateDetails from "./DuplicateDetails";
+import DownloadZipMenu from "./DownloadZipMenu";
 
 interface WorkspaceCardProps {
   workspace: WorkspaceAnalysis;
@@ -31,13 +33,6 @@ function formatDate(dateStr: string | null): string {
   }
 }
 
-function getOwner(w: WorkspaceAnalysis): string | null {
-  const admin = w.members.find((m) => m.roles.includes("admin"));
-  if (admin?.name) return admin.name;
-  if (w.created_by) return w.created_by;
-  return null;
-}
-
 const roleBadgeColors: Record<string, string> = {
   admin: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
   editor: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
@@ -60,24 +55,18 @@ interface Toast {
 export default function WorkspaceCard({ workspace: w, exportPath, sourceMode, analysis }: WorkspaceCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<"collections" | "environments" | "duplicates" | "members">("collections");
-  const [exporting, setExporting] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const dupes = hasDuplicates(w);
   const badgeColor = typeBadgeColors[w.workspace_type] || typeBadgeColors.private;
 
-  const handleExportWorkspace = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleExportWorkspace = async () => {
     try {
-      setExporting(true);
       const safeName = w.workspace_name.replace(/[^a-zA-Z0-9_-]/g, "_");
       const outputPath = await save({
         defaultPath: `${safeName}_export.zip`,
         filters: [{ name: "ZIP", extensions: ["zip"] }],
       });
-      if (!outputPath) {
-        setExporting(false);
-        return;
-      }
+      if (!outputPath) return;
       const singleWorkspaceAnalysis: AnalysisResult = {
         generated_at: analysis.generated_at,
         workspaces: [w],
@@ -101,8 +90,40 @@ export default function WorkspaceCard({ workspace: w, exportPath, sourceMode, an
     } catch (err) {
       setToast({ type: "error", message: String(err) });
       setTimeout(() => setToast(null), 4000);
-    } finally {
-      setExporting(false);
+    }
+  };
+
+  const handleExportWorkspaceBruno = async () => {
+    try {
+      const safeName = w.workspace_name.replace(/[^a-zA-Z0-9_-]/g, "_");
+      const outputPath = await save({
+        defaultPath: `${safeName}_export_bruno.zip`,
+        filters: [{ name: "ZIP", extensions: ["zip"] }],
+      });
+      if (!outputPath) return;
+      const singleWorkspaceAnalysis: AnalysisResult = {
+        generated_at: analysis.generated_at,
+        workspaces: [w],
+      };
+      const analysisJson = JSON.stringify(singleWorkspaceAnalysis);
+      let result: string;
+      if (sourceMode === "api") {
+        result = await invoke<string>("export_bruno_zip_from_api", {
+          analysisJson,
+          outputPath,
+        });
+      } else {
+        result = await invoke<string>("export_bruno_zip", {
+          analysisJson,
+          exportPath,
+          outputPath,
+        });
+      }
+      setToast({ type: "success", message: `Exported to ${result}` });
+      setTimeout(() => setToast(null), 4000);
+    } catch (err) {
+      setToast({ type: "error", message: String(err) });
+      setTimeout(() => setToast(null), 4000);
     }
   };
 
@@ -205,24 +226,18 @@ export default function WorkspaceCard({ workspace: w, exportPath, sourceMode, an
                 </button>
               ))}
             </div>
-            <button
-              type="button"
-              onClick={handleExportWorkspace}
-              disabled={exporting}
-              title="Export this workspace as ZIP"
-              className="mr-2 flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-gray-500 transition-colors
-                hover:bg-gray-100 hover:text-gray-700
-                disabled:cursor-not-allowed disabled:opacity-50
-                dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200
-                focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
-            >
-              {exporting ? (
-                <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" /></svg>
-              ) : (
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-              )}
-              Export
-            </button>
+            <div className="mr-2 ml-1">
+              <DownloadZipMenu
+                label="Download ZIP"
+                onOrganized={handleExportWorkspace}
+                onBruno={handleExportWorkspaceBruno}
+                triggerClassName="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-gray-500 transition-colors
+                  hover:bg-gray-100 hover:text-gray-700
+                  disabled:cursor-not-allowed disabled:opacity-50
+                  dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200
+                  focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
+              />
+            </div>
           </div>
           <div className="max-h-80 overflow-y-auto p-4 scrollbar-thin" role="tabpanel">
             {activeTab === "collections" && <CollectionsList collections={w.collections} />}
@@ -262,6 +277,7 @@ function CollectionsList({ collections }: { collections: WorkspaceAnalysis["coll
           <th className="pb-2 font-medium">Name</th>
           <th className="pb-2 font-medium text-right">Requests</th>
           <th className="pb-2 pr-4 font-medium text-right">Folders</th>
+          <th className="pb-2 pl-2 font-medium hidden sm:table-cell">Last Modified</th>
           <th className="pb-2 pl-2 font-medium hidden sm:table-cell">UID</th>
         </tr>
       </thead>
@@ -271,6 +287,7 @@ function CollectionsList({ collections }: { collections: WorkspaceAnalysis["coll
             <td className="py-1.5 font-medium truncate max-w-[200px]">{c.name}</td>
             <td className="py-1.5 text-right tabular-nums">{c.request_count}</td>
             <td className="py-1.5 pr-4 text-right tabular-nums">{c.folder_count}</td>
+            <td className="py-1.5 pl-2 hidden sm:table-cell text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{formatDate(c.updated_at)}</td>
             <td className="py-1.5 pl-2 hidden sm:table-cell font-mono text-xs text-gray-400 truncate max-w-[120px]">{c.uid}</td>
           </tr>
         ))}

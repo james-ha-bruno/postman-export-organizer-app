@@ -12,6 +12,8 @@ export interface CollectionData {
   folders: string[];
   request_count: number;
   folder_count: number;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface RequestData {
@@ -29,6 +31,8 @@ export interface EnvironmentData {
   id: string;
   name: string;
   values: EnvVariable[];
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface EnvVariable {
@@ -144,4 +148,31 @@ export type SortField = "name" | "collections" | "requests" | "updated";
 export type SortDirection = "asc" | "desc";
 export type WorkspaceTypeFilter = "all" | "personal" | "team" | "private" | "public" | "partner";
 export type DuplicateFilter = "all" | "has_duplicates" | "no_duplicates";
+// Owner filter is "all", the unknown sentinel from `lib/owner`, or an owner display name.
+export type OwnerFilter = string;
+
+// === Advanced filters ===
+
+export type AgeFilter =
+  | { kind: "any" }
+  | { kind: "months"; months: 3 | 6 | 12 | 24 }
+  | { kind: "before"; date: string /* ISO yyyy-mm-dd */ };
+
+export interface AdvancedFilters {
+  workspaceUpdatedWithin: AgeFilter;
+  collectionUpdatedWithin: AgeFilter;
+  environmentUpdatedWithin: AgeFilter;
+  hideEmptyCollections: boolean;
+  hideEmptyEnvironments: boolean;
+  hideEmptyWorkspaces: boolean;
+}
+
+export const DEFAULT_ADVANCED_FILTERS: AdvancedFilters = {
+  workspaceUpdatedWithin: { kind: "any" },
+  collectionUpdatedWithin: { kind: "any" },
+  environmentUpdatedWithin: { kind: "any" },
+  hideEmptyCollections: false,
+  hideEmptyEnvironments: false,
+  hideEmptyWorkspaces: false,
+};
 

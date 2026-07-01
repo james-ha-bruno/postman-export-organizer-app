@@ -22,6 +22,8 @@ pub fn run() {
             commands::analyze_from_api,
             commands::export_organized_zip,
             commands::export_organized_zip_from_api,
+            commands::export_bruno_zip,
+            commands::export_bruno_zip_from_api,
             commands::export_report_json,
             commands::export_report_csv,
         ])
