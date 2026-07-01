@@ -62,6 +62,32 @@ pub fn export_organized_zip_from_api(
 }
 
 #[tauri::command]
+pub fn export_bruno_zip(
+    analysis_json: String,
+    export_path: String,
+    output_path: String,
+) -> Result<String, String> {
+    export::export_bruno_zip(&analysis_json, &export_path, &output_path)
+}
+
+#[tauri::command]
+pub fn export_bruno_zip_from_api(
+    analysis_json: String,
+    output_path: String,
+    api_cache: tauri::State<'_, Mutex<ApiDataCache>>,
+) -> Result<String, String> {
+    let cache = api_cache
+        .lock()
+        .map_err(|e| format!("Failed to lock API cache: {}", e))?;
+    export::export_bruno_zip_from_api(
+        &analysis_json,
+        &cache.collections,
+        &cache.environments,
+        &output_path,
+    )
+}
+
+#[tauri::command]
 pub fn export_report_json(analysis_json: String, output_path: String) -> Result<String, String> {
     export::export_report_json(&analysis_json, &output_path)
 }

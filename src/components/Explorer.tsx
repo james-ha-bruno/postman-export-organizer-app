@@ -51,6 +51,7 @@ export default function Explorer({ analysis, exportPath, sourceMode, onBack }: E
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>(DEFAULT_ADVANCED_FILTERS);
   const [exportingOwnerZip, setExportingOwnerZip] = useState(false);
+  const [exportingOwnerBrunoZip, setExportingOwnerBrunoZip] = useState(false);
   const [ownerToast, setOwnerToast] = useState<Toast | null>(null);
 
   // Single source of truth: advanced filters narrow the analysis once and
@@ -178,6 +179,38 @@ export default function Explorer({ analysis, exportPath, sourceMode, onBack }: E
     }
   };
 
+  const handleExportOwnerBrunoZip = async () => {
+    if (ownerFilter === "all" || ownerScopedWorkspaces.length === 0) return;
+    try {
+      setExportingOwnerBrunoZip(true);
+      const slug = slugifyOwner(ownerLabel) || "owner";
+      const outputPath = await save({
+        defaultPath: `postman-export-bruno-${slug}.zip`,
+        filters: [{ name: "ZIP", extensions: ["zip"] }],
+      });
+      if (!outputPath) {
+        setExportingOwnerBrunoZip(false);
+        return;
+      }
+      const filteredAnalysis: AnalysisResult = {
+        generated_at: baseFilteredAnalysis.generated_at,
+        workspaces: ownerScopedWorkspaces,
+      };
+      const analysisJson = JSON.stringify(filteredAnalysis);
+      let result: string;
+      if (sourceMode === "api") {
+        result = await invoke<string>("export_bruno_zip_from_api", { analysisJson, outputPath });
+      } else {
+        result = await invoke<string>("export_bruno_zip", { analysisJson, exportPath, outputPath });
+      }
+      showToast({ type: "success", message: `Exported to ${result}` });
+    } catch (err) {
+      showToast({ type: "error", message: String(err) });
+    } finally {
+      setExportingOwnerBrunoZip(false);
+    }
+  };
+
   return (
     <div className="min-h-screen p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-6xl space-y-6">
@@ -225,24 +258,45 @@ export default function Explorer({ analysis, exportPath, sourceMode, onBack }: E
               : `${filtered.length} of ${analysis.workspaces.length} workspaces`}
           </p>
           {ownerFilter !== "all" && ownerScopedWorkspaces.length > 0 && (
-            <button
-              type="button"
-              onClick={handleExportOwnerZip}
-              disabled={exportingOwnerZip}
-              title={`Download an organized ZIP containing only ${ownerLabel}'s workspaces`}
-              className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors
-                hover:bg-gray-50
-                disabled:cursor-not-allowed disabled:opacity-50
-                dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700
-                focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
-            >
-              {exportingOwnerZip ? (
-                <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" /></svg>
-              ) : (
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-              )}
-              Download ZIP for {ownerLabel}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleExportOwnerZip}
+                disabled={exportingOwnerZip || exportingOwnerBrunoZip}
+                title={`Download an organized ZIP containing only ${ownerLabel}'s workspaces`}
+                className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors
+                  hover:bg-gray-50
+                  disabled:cursor-not-allowed disabled:opacity-50
+                  dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700
+                  focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
+              >
+                {exportingOwnerZip ? (
+                  <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" /></svg>
+                ) : (
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                )}
+                Download ZIP for {ownerLabel}
+              </button>
+              <button
+                type="button"
+                onClick={handleExportOwnerBrunoZip}
+                disabled={exportingOwnerZip || exportingOwnerBrunoZip}
+                title={`Download a Bruno-compatible bulk-import ZIP containing only ${ownerLabel}'s workspaces`}
+                aria-label={`Bruno ZIP for ${ownerLabel}`}
+                className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors
+                  hover:bg-gray-50
+                  disabled:cursor-not-allowed disabled:opacity-50
+                  dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700
+                  focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
+              >
+                {exportingOwnerBrunoZip ? (
+                  <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" /></svg>
+                ) : (
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 8V5a2 2 0 00-2-2H5a2 2 0 00-2 2v3m18 0v11a2 2 0 01-2 2H5a2 2 0 01-2-2V8m18 0H3m6 4h6" /></svg>
+                )}
+                Bruno ZIP for {ownerLabel}
+              </button>
+            </div>
           )}
         </div>
 

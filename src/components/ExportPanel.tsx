@@ -14,7 +14,7 @@ interface Toast {
   message: string;
 }
 
-type ExportType = "zip" | "json" | "csv";
+type ExportType = "zip" | "bruno" | "json" | "csv";
 
 export default function ExportPanel({ analysis, exportPath, sourceMode }: ExportPanelProps) {
   const [loading, setLoading] = useState<ExportType | null>(null);
@@ -33,6 +33,7 @@ export default function ExportPanel({ analysis, exportPath, sourceMode }: Export
 
       const defaults: Record<ExportType, { name: string; ext: string }> = {
         zip: { name: "organized_export.zip", ext: "zip" },
+        bruno: { name: "postman-export-bruno.zip", ext: "zip" },
         json: { name: "report.json", ext: "json" },
         csv: { name: "summary.csv", ext: "csv" },
       };
@@ -54,6 +55,13 @@ export default function ExportPanel({ analysis, exportPath, sourceMode }: Export
             result = await invoke<string>("export_organized_zip_from_api", { analysisJson, outputPath });
           } else {
             result = await invoke<string>("export_organized_zip", { analysisJson, exportPath, outputPath });
+          }
+          break;
+        case "bruno":
+          if (sourceMode === "api") {
+            result = await invoke<string>("export_bruno_zip_from_api", { analysisJson, outputPath });
+          } else {
+            result = await invoke<string>("export_bruno_zip", { analysisJson, exportPath, outputPath });
           }
           break;
         case "json":
@@ -85,6 +93,12 @@ export default function ExportPanel({ analysis, exportPath, sourceMode }: Export
       icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" /></svg>,
     },
     {
+      type: "bruno",
+      label: "Export for Bruno",
+      desc: "Bulk-importable ZIP for Bruno 3.5+",
+      icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M21 8V5a2 2 0 00-2-2H5a2 2 0 00-2 2v3m18 0v11a2 2 0 01-2 2H5a2 2 0 01-2-2V8m18 0H3m6 4h6" /></svg>,
+    },
+    {
       type: "csv",
       label: "Export CSV Summary",
       desc: "Workspace summary as spreadsheet",
@@ -95,7 +109,7 @@ export default function ExportPanel({ analysis, exportPath, sourceMode }: Export
   return (
     <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
       <h3 className="mb-3 text-sm font-semibold text-gray-900 dark:text-white">Export</h3>
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {buttons.map((btn) => (
           <button
             key={btn.type}
