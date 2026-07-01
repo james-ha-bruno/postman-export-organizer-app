@@ -244,7 +244,8 @@ export default function WorkspaceCard({ workspace: w, exportPath, sourceMode, an
               type="button"
               onClick={handleExportWorkspace}
               disabled={exporting}
-              title="Export this workspace as ZIP"
+              title="Download organized ZIP for this workspace — human-browsable folders. For archival or manual review."
+              aria-label="Download organized ZIP for this workspace — human-browsable folders. For archival or manual review."
               className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-gray-500 transition-colors
                 hover:bg-gray-100 hover:text-gray-700
                 disabled:cursor-not-allowed disabled:opacity-50
@@ -256,14 +257,14 @@ export default function WorkspaceCard({ workspace: w, exportPath, sourceMode, an
               ) : (
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
               )}
-              Export
+              Organized
             </button>
             <button
               type="button"
               onClick={handleExportWorkspaceBruno}
               disabled={exporting}
-              aria-label="Export as Bruno-importable ZIP"
-              title="Bruno-importable ZIP for this workspace"
+              aria-label="Download Bulk-Import ZIP for this workspace — ready to drop into Bruno 3.5+ Import."
+              title="Download Bulk-Import ZIP for this workspace — ready to drop into Bruno 3.5+ Import."
               className="mr-2 ml-1 flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-gray-500 transition-colors
                 hover:bg-gray-100 hover:text-gray-700
                 disabled:cursor-not-allowed disabled:opacity-50

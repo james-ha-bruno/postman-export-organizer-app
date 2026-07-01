@@ -263,7 +263,7 @@ export default function Explorer({ analysis, exportPath, sourceMode, onBack }: E
                 type="button"
                 onClick={handleExportOwnerZip}
                 disabled={exportingOwnerZip || exportingOwnerBrunoZip}
-                title={`Download an organized ZIP containing only ${ownerLabel}'s workspaces`}
+                title="Human-readable folders grouped by workspace. For archival & manual review."
                 className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors
                   hover:bg-gray-50
                   disabled:cursor-not-allowed disabled:opacity-50
@@ -275,13 +275,13 @@ export default function Explorer({ analysis, exportPath, sourceMode, onBack }: E
                 ) : (
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                 )}
-                Download ZIP for {ownerLabel}
+                Organized ZIP for {ownerLabel}
               </button>
               <button
                 type="button"
                 onClick={handleExportOwnerBrunoZip}
                 disabled={exportingOwnerZip || exportingOwnerBrunoZip}
-                title={`Download a Bruno-compatible bulk-import ZIP containing only ${ownerLabel}'s workspaces`}
+                title="Bulk-Import-ready ZIP for Bruno 3.5+."
                 aria-label={`Bruno ZIP for ${ownerLabel}`}
                 className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors
                   hover:bg-gray-50
