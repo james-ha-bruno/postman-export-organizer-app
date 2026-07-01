@@ -82,26 +82,26 @@ export default function ExportPanel({ analysis, exportPath, sourceMode }: Export
   const buttons: { type: ExportType; label: string; desc: string; icon: React.ReactNode }[] = [
     {
       type: "zip",
-      label: "Organized ZIP",
-      desc: "Folders grouped by workspace, for archival & browsing",
+      label: "Organized folders",
+      desc: "Human-browsable — for archival & review",
       icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0l-3-3m3 3l3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" /></svg>,
     },
     {
-      type: "json",
-      label: "JSON Report",
-      desc: "Full analysis data as JSON",
-      icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" /></svg>,
-    },
-    {
       type: "bruno",
-      label: "Bruno ZIP",
-      desc: "Bulk-importable into Bruno 3.5+",
+      label: "Bruno Bulk Import",
+      desc: "Drop into Bruno App Import",
       icon: (
         <span className="relative inline-flex h-5 w-5">
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M21 8V5a2 2 0 00-2-2H5a2 2 0 00-2 2v3m18 0v11a2 2 0 01-2 2H5a2 2 0 01-2-2V8m18 0H3m6 4h6" /></svg>
           <svg className="absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full bg-white p-[1.5px] text-accent-500 ring-2 ring-white dark:bg-gray-800 dark:ring-gray-800" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
         </span>
       ),
+    },
+    {
+      type: "json",
+      label: "JSON Report",
+      desc: "Full analysis data as JSON",
+      icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" /></svg>,
     },
     {
       type: "csv",
