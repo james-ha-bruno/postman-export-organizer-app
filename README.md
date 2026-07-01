@@ -2,10 +2,7 @@
 
 A desktop app for analyzing and organizing Postman data exports. Import your Postman backup, connect your API key, and get a clear view of your collections and environments organized by workspace — with duplicate detection, member info, and structured export.
 
-
-
-https://github.com/user-attachments/assets/f0cdea49-0e65-45f8-b5bc-73043fcbf40a
-
+https://github.com/user-attachments/assets/165b7cda-ac30-46a7-bdef-587246952c3d
 
 ## Disclaimer
 
